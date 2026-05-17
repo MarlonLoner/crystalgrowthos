@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum LeadStatus {
+  NEW_LEAD
+  CONTACTED
+  QUOTE_REQUESTED
+  QUOTE_SENT
+  FOLLOW_UP_NEEDED
+  NEGOTIATING
+  WON
+  LOST
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENT
+  ARCHIVED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String?
+  email     String   @unique
+  password  String
+  role      String   @default("marketer")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Lead {
+  id                  String     @id @default(cuid())
+  name                String
+  phone               String
+  email               String     @unique
+  businessName        String
+  businessType        String
+  source              String
+  serviceInterestedIn String
+  status              LeadStatus @default(NEW_LEAD)
+  dealValue           Decimal    @db.Decimal(12, 2)
+  birthday            DateTime?
+  notes               String?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  nextFollowUpDate    DateTime?
+  campaigns           EmailCampaign[]
+  followUps           FollowUp[]
+}
+
+model ContentBrief {
+  id        String   @id @default(cuid())
+  platform  String
+  offer     String
+  audience  String
+  service   String
+  tone      String
+  cta       String
+  painPoint String
+  outputs   Json
+  createdAt DateTime @default(now())
+}
+
+model EmailCampaign {
+  id          String         @id @default(cuid())
+  title       String
+  template    String
+  audience    String
+  subject     String
+  body        String
+  status      CampaignStatus @default(DRAFT)
+  scheduledAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  leadId      String?
+  lead        Lead?          @relation(fields: [leadId], references: [id])
+}
+
+model AutomationRule {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String
+  enabled     Boolean  @default(false)
+  trigger     String
+  channel     String
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+}
+
+model FollowUp {
+  id          String   @id @default(cuid())
+  leadId      String
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  dueDate     DateTime
+  completedAt DateTime?
+  note        String?
+  createdAt   DateTime @default(now())
+}

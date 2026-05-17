@@ -1,0 +1,12 @@
+node_modules
+.next
+.env
+.env.local
+.npm-cache
+dist
+build
+.vercel
+screenshots
+.chrome-profile*
+*.log
+tsconfig.tsbuildinfo

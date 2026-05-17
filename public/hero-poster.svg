@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Futuristic AI command background</title>
+  <desc id="desc">Dark cinematic grid with glowing connected nodes and atmospheric gradients.</desc>
+  <defs>
+    <radialGradient id="cyanGlow" cx="18%" cy="18%" r="55%">
+      <stop offset="0" stop-color="#60f4ff" stop-opacity=".34"/>
+      <stop offset=".42" stop-color="#60f4ff" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#05060c" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="emberGlow" cx="82%" cy="26%" r="48%">
+      <stop offset="0" stop-color="#ff6f61" stop-opacity=".28"/>
+      <stop offset=".48" stop-color="#ff6f61" stop-opacity=".06"/>
+      <stop offset="1" stop-color="#05060c" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="fade" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#112b33"/>
+      <stop offset=".42" stop-color="#05060c"/>
+      <stop offset="1" stop-color="#101828"/>
+    </linearGradient>
+    <filter id="softGlow">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="1600" height="900" fill="#05060c"/>
+  <rect width="1600" height="900" fill="url(#fade)" opacity=".82"/>
+  <rect width="1600" height="900" fill="url(#cyanGlow)"/>
+  <rect width="1600" height="900" fill="url(#emberGlow)"/>
+  <g stroke="#ffffff" stroke-opacity=".07" stroke-width="1">
+    <path d="M0 180h1600M0 360h1600M0 540h1600M0 720h1600"/>
+    <path d="M200 0v900M400 0v900M600 0v900M800 0v900M1000 0v900M1200 0v900M1400 0v900"/>
+  </g>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" filter="url(#softGlow)">
+    <path d="M210 560 420 430 650 520 850 360 1100 430 1320 300" stroke="#60f4ff" stroke-opacity=".22" stroke-width="3"/>
+    <path d="M365 250 560 185 760 265 980 160 1215 245" stroke="#ff6f61" stroke-opacity=".18" stroke-width="3"/>
+    <g stroke="#60f4ff" stroke-opacity=".18" stroke-width="2">
+      <path d="m420 330 74 42v84l-74 42-74-42v-84z"/>
+      <path d="m850 262 86 49v98l-86 49-86-49v-98z"/>
+      <path d="m1200 392 74 42v84l-74 42-74-42v-84z"/>
+      <path d="m630 590 96 55v110l-96 55-96-55V645z"/>
+    </g>
+    <g fill="#60f4ff">
+      <circle cx="210" cy="560" r="7" opacity=".8"/>
+      <circle cx="420" cy="430" r="7" opacity=".72"/>
+      <circle cx="650" cy="520" r="7" opacity=".66"/>
+      <circle cx="850" cy="360" r="7" opacity=".78"/>
+      <circle cx="1100" cy="430" r="7" opacity=".62"/>
+      <circle cx="1320" cy="300" r="7" opacity=".76"/>
+    </g>
+  </g>
+  <rect width="1600" height="900" fill="#05060c" opacity=".36"/>
+</svg>
