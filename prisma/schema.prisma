@@ -25,6 +25,25 @@ enum CampaignStatus {
   ARCHIVED
 }
 
+enum QuoteStatus {
+  DRAFT
+  SENT
+  VIEWED
+  FOLLOW_UP_DUE
+  ACCEPTED
+  REJECTED
+  PAID
+}
+
+enum FollowUpActivityType {
+  CALL
+  WHATSAPP
+  EMAIL
+  STAGE_CHANGE
+  QUOTE_CREATED
+  NOTE
+}
+
 model User {
   id        String   @id @default(cuid())
   name      String?
@@ -46,13 +65,18 @@ model Lead {
   serviceInterestedIn String
   status              LeadStatus @default(NEW_LEAD)
   dealValue           Decimal    @db.Decimal(12, 2)
+  estimatedDealValue  Decimal?   @db.Decimal(12, 2)
   birthday            DateTime?
   notes               String?
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
+  lastContactedAt     DateTime?
   nextFollowUpDate    DateTime?
+  nextFollowUpAt      DateTime?
   campaigns           EmailCampaign[]
   followUps           FollowUp[]
+  quotes              Quote[]
+  activities          FollowUpActivity[]
 }
 
 model ContentBrief {
@@ -102,4 +126,47 @@ model FollowUp {
   completedAt DateTime?
   note        String?
   createdAt   DateTime @default(now())
+}
+
+model Quote {
+  id              String          @id @default(cuid())
+  leadId          String
+  lead            Lead            @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  quoteNumber     String          @unique
+  businessName    String
+  clientName      String
+  serviceCategory String
+  discount        Decimal         @default(0) @db.Decimal(12, 2)
+  total           Decimal         @default(0) @db.Decimal(12, 2)
+  finalTotal      Decimal         @default(0) @db.Decimal(12, 2)
+  status          QuoteStatus     @default(DRAFT)
+  notes           String?
+  terms           String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  expiryDate      DateTime
+  lineItems       QuoteLineItem[]
+}
+
+model QuoteLineItem {
+  id          String   @id @default(cuid())
+  quoteId     String
+  quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Int
+  unitPrice   Decimal  @db.Decimal(12, 2)
+  total       Decimal  @db.Decimal(12, 2)
+  createdAt   DateTime @default(now())
+}
+
+model FollowUpActivity {
+  id          String               @id @default(cuid())
+  leadId      String
+  lead        Lead                 @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  type        FollowUpActivityType
+  title       String
+  note        String?
+  completedAt DateTime?
+  dueAt       DateTime?
+  createdAt   DateTime             @default(now())
 }

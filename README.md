@@ -15,9 +15,12 @@ Internal AI-powered marketing department dashboard for Crystal Branding Studio.
 
 ## MVP Modules
 
-- Dashboard metrics for leads, quotes, wins, follow-ups, scheduled posts, campaigns, and pipeline value
-- Lead database with contact, business, status, birthday, notes, and next follow-up data
+- Dashboard metrics for leads, quote value, wins, overdue follow-ups, dormant customers, campaigns, and pipeline value
+- Lead database with contact, business, status, birthday, notes, source, deal value, and next follow-up data
 - Sales pipeline with moveable stages
+- Follow-Up Queue for daily money actions
+- Quote Builder with quote list, create, edit, detail, and PDF-style preview screens
+- WhatsApp Script Generator for first responses, quote follow-ups, payment reminders, approvals, reviews, referrals, and revival messages
 - Content engine with placeholder AI copy outputs
 - Email campaign engine with draft-saving API route
 - Automation center with toggleable rules
@@ -66,6 +69,32 @@ npm run dev
 ```
 
 Open `http://localhost:3000`.
+
+## Money Execution Layer
+
+### Follow-Up Queue
+
+Visit `/follow-ups` to test the daily sales command center. The queue shows leads not contacted yet, follow-ups due today, overdue follow-ups, quotes sent but not accepted, dormant customers, and birthday messages due this month.
+
+Use the quick actions to generate mock WhatsApp or email messages, mark contacted, move stage, or start a quote. The WhatsApp script generator includes short Zimbabwean-business friendly scripts for first response, shopfront/logo requests, quote follow-up, payment reminder, design approval, installation scheduling, review request, referral request, and dead lead revival.
+
+### Quote Builder
+
+Visit `/quotes` to test the quote list. Use `/quotes/new` to open the create quote form. Open any quote detail page, such as `/quotes/quote-1`, to view the clean PDF-style quote preview. Use `/quotes/quote-1/edit` to test the edit form.
+
+The quote model supports client/lead, business name, quote number, service category, line items, quantity, unit price, totals, discount, final total, status, notes, terms, created date, and expiry date.
+
+## Database
+
+The Prisma schema uses PostgreSQL with `DATABASE_URL`. Production deployment should use a hosted PostgreSQL database such as Neon or Supabase.
+
+Run production migrations with:
+
+```bash
+npx prisma migrate deploy
+```
+
+Seed data includes 10 Crystal Branding Studio leads, 5 quotes, signage and branding services, overdue follow-ups, quote follow-ups, dormant customers, and birthdays due this month.
 
 ## Vercel Deployment
 
@@ -133,6 +162,9 @@ The current `/login` page is an MVP screen and redirects into the dashboard with
 - `EmailCampaign`
 - `AutomationRule`
 - `FollowUp`
+- `Quote`
+- `QuoteLineItem`
+- `FollowUpActivity`
 
 The UI uses seed-shaped mock data so it remains browsable before PostgreSQL is running. API routes are already structured to persist updates when the database is connected.
 

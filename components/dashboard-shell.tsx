@@ -5,20 +5,23 @@ import {
   FileText,
   LayoutDashboard,
   Mail,
-  Megaphone,
+  MessageSquareText,
+  ReceiptText,
   Sparkles,
   UsersRound
 } from "lucide-react";
 
 const nav = [
-  ["Dashboard", "#dashboard", LayoutDashboard],
-  ["AI Strategy", "#strategy", Bot],
-  ["Leads", "#leads", UsersRound],
-  ["Pipeline", "#pipeline", BarChart3],
-  ["Content", "#content", Sparkles],
-  ["Campaigns", "#campaigns", Mail],
-  ["Automation", "#automation", CalendarClock],
-  ["Reports", "#reports", FileText]
+  ["Dashboard", "/#dashboard", LayoutDashboard],
+  ["Follow-Ups", "/follow-ups", MessageSquareText],
+  ["Quotes", "/quotes", ReceiptText],
+  ["AI Strategy", "/#strategy", Bot],
+  ["Leads", "/#leads", UsersRound],
+  ["Pipeline", "/#pipeline", BarChart3],
+  ["Content", "/#content", Sparkles],
+  ["Campaigns", "/#campaigns", Mail],
+  ["Automation", "/#automation", CalendarClock],
+  ["Reports", "/#reports", FileText]
 ] as const;
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -26,7 +29,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen lg:grid lg:grid-cols-[18rem_1fr]">
       <aside className="sticky top-0 z-30 border-b border-white/10 bg-obsidian/92 backdrop-blur lg:h-screen lg:border-b-0 lg:border-r">
         <div className="flex h-full flex-col gap-6 p-4 lg:p-6">
-          <a href="#dashboard" className="flex items-center gap-3">
+          <a href="/#dashboard" className="flex items-center gap-3">
             <div className="grid size-11 place-items-center rounded-lg border border-aurum/30 bg-aurum/10 text-aurum shadow-glow">
               <Sparkles size={22} />
             </div>
@@ -53,11 +56,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
           <div className="mt-auto hidden rounded-lg border border-white/10 bg-white/[0.04] p-4 lg:block">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-aurum">
-              MVP Mode
+              Money OS Mode
             </p>
             <p className="mt-2 text-sm leading-6 text-mercury">
-              Database schema and API routes are ready; UI falls back to seed data when
-              PostgreSQL is not connected.
+              Follow-ups, quotes, and pipeline actions are now organized around daily revenue execution.
             </p>
           </div>
         </div>

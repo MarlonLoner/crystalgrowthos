@@ -1,25 +1,25 @@
-import { CalendarCheck2, MailCheck, Send, Target, Trophy, UsersRound, WalletCards } from "lucide-react";
-import { Lead } from "@/lib/mock-data";
+import { CalendarCheck2, Clock3, FileText, Send, Trophy, UsersRound, WalletCards } from "lucide-react";
+import { Lead, quotes, quoteFinalTotal, today } from "@/lib/mock-data";
 import { currency } from "@/lib/utils";
 
 export function DashboardOverview({ leads }: { leads: Lead[] }) {
-  const newThisMonth = leads.filter((lead) => lead.createdAt.startsWith("2026-05")).length;
-  const quotesSent = leads.filter((lead) => lead.status === "Quote Sent").length;
+  const now = new Date(today);
+  const dueToday = leads.filter((lead) => lead.nextFollowUpDate === today).length;
+  const overdue = leads.filter((lead) => new Date(lead.nextFollowUpDate) < now).length;
+  const sentQuotes = quotes.filter((quote) => ["Sent", "Viewed", "Follow-Up Due"].includes(quote.status));
+  const pendingValue = sentQuotes.reduce((total, quote) => total + quoteFinalTotal(quote), 0);
   const won = leads.filter((lead) => lead.status === "Won").length;
-  const followUps = leads.filter((lead) => new Date(lead.nextFollowUpDate) <= new Date("2026-05-20")).length;
-  const pipeline = leads
-    .filter((lead) => lead.status !== "Won" && lead.status !== "Lost")
-    .reduce((total, lead) => total + lead.dealValue, 0);
+  const dormant = leads.filter((lead) => lead.isCustomer && lead.lastContactedAt && Math.floor((now.getTime() - new Date(lead.lastContactedAt).getTime()) / 86400000) > 90).length;
 
   const cards = [
     ["Total leads", leads.length.toString(), UsersRound],
-    ["New leads this month", newThisMonth.toString(), Target],
-    ["Quotes sent", quotesSent.toString(), Send],
+    ["Follow-ups due today", dueToday.toString(), CalendarCheck2],
+    ["Overdue follow-ups", overdue.toString(), Clock3],
+    ["Quotes sent", sentQuotes.length.toString(), Send],
+    ["Quote value pending", currency(pendingValue), WalletCards],
     ["Deals won", won.toString(), Trophy],
-    ["Follow-ups due", followUps.toString(), CalendarCheck2],
-    ["Scheduled posts", "18", MailCheck],
-    ["Email campaigns", "7", MailCheck],
-    ["Estimated pipeline", currency(pipeline), WalletCards]
+    ["Dormant customers", dormant.toString(), UsersRound],
+    ["Quote builder", quotes.length.toString(), FileText]
   ] as const;
 
   return (
