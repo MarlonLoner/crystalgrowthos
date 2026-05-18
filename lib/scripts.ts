@@ -1,4 +1,4 @@
-import { Lead } from "@/lib/mock-data";
+﻿import { Lead } from "@/lib/mock-data";
 
 export type ScriptType =
   | "first-response"
@@ -45,3 +45,4 @@ export function generateWhatsAppScript(type: ScriptType, lead: Pick<Lead, "name"
 export function generateEmailScript(lead: Pick<Lead, "name" | "businessName" | "serviceInterestedIn" | "status">) {
   return `Subject: Next step for ${lead.businessName}\n\nHi ${lead.name},\n\nI wanted to follow up on your ${lead.serviceInterestedIn.toLowerCase()} request. The next best step is to confirm your preferred timeline and any artwork/logo files so Crystal Branding Studio can move this forward cleanly.\n\nKind regards,\nCrystal Branding Studio`;
 }
+

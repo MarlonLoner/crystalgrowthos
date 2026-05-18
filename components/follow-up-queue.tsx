@@ -1,12 +1,13 @@
-"use client";
+﻿"use client";
 
 import { CheckCircle2, FilePlus2, Mail, MessageCircle, MoveRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Lead, leads, quotes, today } from "@/lib/mock-data";
 import { generateEmailScript, generateWhatsAppScript } from "@/lib/scripts";
 import { currency, formatDate } from "@/lib/utils";
-import { buttonClass, Panel, SectionHeading } from "@/components/ui";
+import { Panel, SectionHeading } from "@/components/ui";
 import { WhatsAppScriptGenerator } from "@/components/whatsapp-script-generator";
+import { WhatsAppAction } from "@/components/whatsapp-action";
 
 function month(value: string) {
   return new Date(value).getMonth();
@@ -131,10 +132,13 @@ export function FollowUpQueue() {
             <p className="mt-3 whitespace-pre-line rounded-lg border border-white/10 bg-obsidian/70 p-4 text-sm leading-6 text-slate-200">
               {generated || "Use a quick action to generate a WhatsApp or email follow-up."}
             </p>
-            {generated ? <button className={`${buttonClass} mt-4`} onClick={() => navigator.clipboard.writeText(generated)}>Copy Message</button> : null}
+            {generated ? <WhatsAppAction className="mt-4" phone={selectedLead.phone} message={generated} /> : null}
           </Panel>
         </div>
       </div>
     </div>
   );
 }
+
+
+

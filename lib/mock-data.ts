@@ -1,4 +1,4 @@
-export type LeadStage =
+﻿export type LeadStage =
   | "New Lead"
   | "Contacted"
   | "Quote Requested"
@@ -19,6 +19,7 @@ export type Lead = {
   serviceInterestedIn: string;
   status: LeadStage;
   dealValue: number;
+  estimatedDealValue: number;
   birthday: string;
   notes: string;
   createdAt: string;
@@ -84,6 +85,7 @@ export const leads: Lead[] = [
     serviceInterestedIn: "Shopfront branding",
     status: "Quote Sent",
     dealValue: 1850,
+    estimatedDealValue: 1850,
     birthday: "1989-05-23",
     notes: "Needs illuminated shopfront signage before month-end opening.",
     createdAt: "2026-05-03",
@@ -101,6 +103,7 @@ export const leads: Lead[] = [
     serviceInterestedIn: "Vehicle branding",
     status: "Follow-Up Needed",
     dealValue: 2400,
+    estimatedDealValue: 2400,
     birthday: "1984-09-10",
     notes: "Three delivery vans, wants durable vinyl and reflective safety details.",
     createdAt: "2026-04-29",
@@ -118,6 +121,7 @@ export const leads: Lead[] = [
     serviceInterestedIn: "3D signage",
     status: "Negotiating",
     dealValue: 1250,
+    estimatedDealValue: 1250,
     birthday: "1992-05-30",
     notes: "Asked for gold acrylic lettering and reception wall logo.",
     createdAt: "2026-05-07",
@@ -135,6 +139,7 @@ export const leads: Lead[] = [
     serviceInterestedIn: "Reception wall branding",
     status: "New Lead",
     dealValue: 780,
+    estimatedDealValue: 780,
     birthday: "1978-01-18",
     notes: "Downloaded brochure but has not been contacted yet.",
     createdAt: "2026-05-16",
@@ -152,6 +157,7 @@ export const leads: Lead[] = [
     serviceInterestedIn: "Banners",
     status: "Quote Requested",
     dealValue: 640,
+    estimatedDealValue: 640,
     birthday: "1990-12-02",
     notes: "Needs launch banners and menu board refresh.",
     createdAt: "2026-05-12",
@@ -169,6 +175,7 @@ export const leads: Lead[] = [
     serviceInterestedIn: "Vinyl window graphics",
     status: "Contacted",
     dealValue: 520,
+    estimatedDealValue: 520,
     birthday: "1986-05-04",
     notes: "Asked for privacy vinyl and opening hours on glass.",
     createdAt: "2026-05-01",
@@ -186,6 +193,7 @@ export const leads: Lead[] = [
     serviceInterestedIn: "Directional signs",
     status: "Won",
     dealValue: 3200,
+    estimatedDealValue: 3200,
     birthday: "1981-07-14",
     notes: "Paid deposit for campus wayfinding package.",
     createdAt: "2026-04-10",
@@ -204,6 +212,7 @@ export const leads: Lead[] = [
     serviceInterestedIn: "Pull-up banners",
     status: "Lost",
     dealValue: 460,
+    estimatedDealValue: 460,
     birthday: "1988-05-25",
     notes: "Went quiet after asking for cheaper banner options.",
     createdAt: "2026-03-18",
@@ -221,6 +230,7 @@ export const leads: Lead[] = [
     serviceInterestedIn: "3D signage",
     status: "Quote Sent",
     dealValue: 2100,
+    estimatedDealValue: 2100,
     birthday: "1979-10-09",
     notes: "Viewed sign mockup and asked if installation can be done Sunday.",
     createdAt: "2026-05-05",
@@ -238,6 +248,7 @@ export const leads: Lead[] = [
     serviceInterestedIn: "Safety signs and vinyl",
     status: "Contacted",
     dealValue: 980,
+    estimatedDealValue: 980,
     birthday: "1991-05-12",
     notes: "Existing customer due for clinic signage refresh.",
     createdAt: "2026-02-02",
@@ -245,6 +256,25 @@ export const leads: Lead[] = [
     nextFollowUpDate: "2026-05-18",
     isCustomer: true
   }
+];
+
+export type FollowUpActivity = {
+  id: string;
+  leadId: string;
+  type: "CALL" | "WHATSAPP" | "EMAIL" | "STAGE_CHANGE" | "QUOTE_CREATED" | "NOTE";
+  title: string;
+  note: string;
+  dueAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+};
+
+export const followUpActivities: FollowUpActivity[] = [
+  { id: "act-1", leadId: "lead-1", type: "WHATSAPP", title: "Sent quote follow-up", note: "Asked Tariro if deposit can be confirmed before installation slots fill.", dueAt: "2026-05-18", completedAt: null, createdAt: "2026-05-17" },
+  { id: "act-2", leadId: "lead-2", type: "CALL", title: "Call fleet manager", note: "Discuss vinyl durability and booking all three vans together.", dueAt: "2026-05-15", completedAt: null, createdAt: "2026-05-12" },
+  { id: "act-3", leadId: "lead-3", type: "EMAIL", title: "Sent gold finish mockup", note: "Client viewed and asked about payment timing.", dueAt: "2026-05-20", completedAt: "2026-05-17", createdAt: "2026-05-15" },
+  { id: "act-4", leadId: "lead-4", type: "WHATSAPP", title: "First response due", note: "Request logo, wall photo, and reception measurements.", dueAt: "2026-05-18", completedAt: null, createdAt: "2026-05-16" },
+  { id: "act-5", leadId: "lead-9", type: "QUOTE_CREATED", title: "Quote created", note: "Sunday installation allowance included.", dueAt: "2026-05-16", completedAt: null, createdAt: "2026-05-12" }
 ];
 
 export const quotes: Quote[] = [
@@ -390,3 +420,6 @@ export const contentCategories = [
   { name: "Vehicle branding", value: 21 },
   { name: "Banners and vinyl", value: 20 }
 ];
+
+
+

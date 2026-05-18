@@ -1,9 +1,10 @@
-import Link from "next/link";
-import { Quote, quoteFinalTotal, quoteSubtotal } from "@/lib/mock-data";
+﻿import Link from "next/link";
+import { Lead, Quote, quoteFinalTotal, quoteSubtotal } from "@/lib/mock-data";
 import { currency, formatDate } from "@/lib/utils";
 import { buttonClass, Panel } from "@/components/ui";
+import { QuoteSendActions } from "@/components/quote-send-actions";
 
-export function QuotePreview({ quote }: { quote: Quote }) {
+export function QuotePreview({ quote, lead }: { quote: Quote; lead?: Lead }) {
   return (
     <Panel className="bg-white text-slate-950">
       <div className="flex flex-col gap-4 border-b border-slate-200 pb-6 md:flex-row md:items-start md:justify-between">
@@ -54,6 +55,8 @@ export function QuotePreview({ quote }: { quote: Quote }) {
         <div><p className="font-black">Terms</p><p className="mt-2 text-sm leading-6 text-slate-600">{quote.terms}</p></div>
       </div>
 
+      {lead ? <QuoteSendActions quote={quote} lead={lead} /> : null}
+
       <div className="mt-8 flex flex-wrap gap-3 print:hidden">
         <Link className={buttonClass} href={`/quotes/${quote.id}/edit`}>Edit Quote</Link>
         <Link className="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white" href="/quotes">Back to Quotes</Link>
@@ -61,3 +64,4 @@ export function QuotePreview({ quote }: { quote: Quote }) {
     </Panel>
   );
 }
+

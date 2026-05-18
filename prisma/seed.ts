@@ -1,4 +1,4 @@
-import { PrismaClient, LeadStatus, QuoteStatus } from "@prisma/client";
+﻿import { PrismaClient, LeadStatus, QuoteStatus, FollowUpActivityType } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -15,6 +15,13 @@ const leads = [
   ["lead-10", "Lisa Gumbo", "+263 73 876 5521", "lisa@avonleahealth.co.zw", "Avonlea Health Clinic", "Healthcare", "WhatsApp referral", "Safety signs and vinyl", LeadStatus.CONTACTED, "980.00", "1991-05-12", "Existing customer due for clinic signage refresh.", "2026-02-02", "2026-01-21", "2026-05-18"]
 ] as const;
 
+const activitySeeds = [
+  { leadId: "lead-1", type: FollowUpActivityType.WHATSAPP, title: "Sent quote follow-up", note: "Asked Tariro if deposit can be confirmed before installation slots fill.", dueAt: "2026-05-18", completedAt: null },
+  { leadId: "lead-2", type: FollowUpActivityType.CALL, title: "Call fleet manager", note: "Discuss vinyl durability and booking all three vans together.", dueAt: "2026-05-15", completedAt: null },
+  { leadId: "lead-3", type: FollowUpActivityType.EMAIL, title: "Sent gold finish mockup", note: "Client viewed and asked about payment timing.", dueAt: "2026-05-20", completedAt: "2026-05-17" },
+  { leadId: "lead-4", type: FollowUpActivityType.WHATSAPP, title: "First response due", note: "Request logo, wall photo, and reception measurements.", dueAt: "2026-05-18", completedAt: null },
+  { leadId: "lead-9", type: FollowUpActivityType.QUOTE_CREATED, title: "Quote created", note: "Sunday installation allowance included.", dueAt: "2026-05-16", completedAt: null }
+] as const;
 const quoteSeeds = [
   {
     leadId: "lead-1",
@@ -175,6 +182,19 @@ async function main() {
     });
   }
 
+  await prisma.followUpActivity.deleteMany({});
+  for (const activity of activitySeeds) {
+    await prisma.followUpActivity.create({
+      data: {
+        leadId: activity.leadId,
+        type: activity.type,
+        title: activity.title,
+        note: activity.note,
+        dueAt: activity.dueAt ? new Date(activity.dueAt) : null,
+        completedAt: activity.completedAt ? new Date(activity.completedAt) : null
+      }
+    });
+  }
   const automations = [
     ["Birthday wishes", "Send warm birthday messages with a small loyalty offer.", "Lead birthday", "WhatsApp", true],
     ["Holiday messages", "Queue seasonal greetings and limited-time brand offers.", "Public holiday calendar", "Email", true],
@@ -202,3 +222,6 @@ main()
     await prisma.$disconnect();
     process.exit(1);
   });
+
+
+

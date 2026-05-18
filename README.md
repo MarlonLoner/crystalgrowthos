@@ -1,4 +1,4 @@
-# Crystal Growth OS
+﻿# Crystal Growth OS
 
 Internal AI-powered marketing department dashboard for Crystal Branding Studio.
 
@@ -16,7 +16,9 @@ Internal AI-powered marketing department dashboard for Crystal Branding Studio.
 ## MVP Modules
 
 - Dashboard metrics for leads, quote value, wins, overdue follow-ups, dormant customers, campaigns, and pipeline value
-- Lead database with contact, business, status, birthday, notes, source, deal value, and next follow-up data
+- Lead database with contact, business, status, birthday, notes, source, deal value, estimated value, and next follow-up data
+- Lead management pages for list, create, detail, and edit workflows
+- WhatsApp execution actions with Zimbabwe phone formatting and wa.me links
 - Sales pipeline with moveable stages
 - Follow-Up Queue for daily money actions
 - Quote Builder with quote list, create, edit, detail, and PDF-style preview screens
@@ -70,6 +72,15 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+## Lead Capture + WhatsApp Execution
+
+Visit `/leads` to manage the lead list. Use `/leads/new` to capture a new opportunity, `/leads/lead-1` to inspect a lead, and `/leads/lead-1/edit` to test the edit form.
+
+Lead detail pages show full lead information, related quotes, follow-up activities, suggested next action, generated WhatsApp scripts, and quick CTAs for quote creation, editing, marking contacted, copying messages, and opening WhatsApp.
+
+WhatsApp actions safely format Zimbabwe phone numbers into `wa.me` links. They support numbers such as `+263 77 245 9011`, `0772459011`, and `772459011`, then encode the generated message for direct sending.
+
+Quote detail pages include a quote send flow with a generated WhatsApp message, copy/open buttons, a mock Mark Quote Sent action, and a mock Set Follow-up for Tomorrow action.
 ## Money Execution Layer
 
 ### Follow-Up Queue
@@ -199,3 +210,5 @@ npm run build
 ```
 
 This SWC issue is environment-specific and should not require rewriting the app.
+
+

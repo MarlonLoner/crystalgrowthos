@@ -1,4 +1,4 @@
-import {
+﻿import {
   BarChart3,
   Bot,
   CalendarClock,
@@ -16,7 +16,7 @@ const nav = [
   ["Follow-Ups", "/follow-ups", MessageSquareText],
   ["Quotes", "/quotes", ReceiptText],
   ["AI Strategy", "/#strategy", Bot],
-  ["Leads", "/#leads", UsersRound],
+  ["Leads", "/leads", UsersRound],
   ["Pipeline", "/#pipeline", BarChart3],
   ["Content", "/#content", Sparkles],
   ["Campaigns", "/#campaigns", Mail],
@@ -71,3 +71,5 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
+
