@@ -1,28 +1,25 @@
-﻿import { CalendarCheck2, Flame, Send, Trophy, UsersRound, WalletCards } from "lucide-react";
-import { Lead, quotes, quoteFinalTotal, today } from "@/lib/mock-data";
+﻿import { CalendarCheck2, Flame, Send, Target, Trophy, UsersRound, WalletCards } from "lucide-react";
+import { Lead } from "@/lib/mock-data";
+import { getRevenueMetrics } from "@/lib/revenue-intelligence";
 import { currency } from "@/lib/utils";
 
+function percent(value: number) {
+  return `${Math.round(value * 100)}%`;
+}
+
 export function DashboardOverview({ leads }: { leads: Lead[] }) {
-  const now = new Date(today);
-  const weekAgo = new Date(now);
-  weekAgo.setDate(now.getDate() - 7);
-  const newThisWeek = leads.filter((lead) => new Date(lead.createdAt) >= weekAgo).length;
-  const hotLeads = leads.filter((lead) => ["Quote Requested", "Quote Sent", "Follow-Up Needed", "Negotiating"].includes(lead.status)).length;
-  const needingContact = leads.filter((lead) => !lead.lastContactedAt || new Date(lead.nextFollowUpDate) <= now).length;
-  const sentQuotes = quotes.filter((quote) => ["Sent", "Viewed", "Follow-Up Due"].includes(quote.status));
-  const pendingValue = sentQuotes.reduce((total, quote) => total + quoteFinalTotal(quote), 0);
-  const won = leads.filter((lead) => lead.status === "Won").length;
-  const dueToday = leads.filter((lead) => lead.nextFollowUpDate === today).length;
+  const metrics = getRevenueMetrics();
+  const needingContact = leads.filter((lead) => !lead.lastContactedAt || new Date(lead.nextFollowUpDate) <= new Date("2026-05-18")).length;
 
   const cards = [
-    ["Total leads", leads.length.toString(), UsersRound, "/leads"],
-    ["New leads this week", newThisWeek.toString(), UsersRound, "/leads/new"],
-    ["Hot leads", hotLeads.toString(), Flame, "/leads"],
-    ["Leads needing contact", needingContact.toString(), CalendarCheck2, "/follow-ups"],
-    ["Pending quote value", currency(pendingValue), WalletCards, "/quotes"],
-    ["Quotes sent", sentQuotes.length.toString(), Send, "/quotes"],
-    ["Follow-ups due today", dueToday.toString(), CalendarCheck2, "/follow-ups"],
-    ["Deals won", won.toString(), Trophy, "/quotes"]
+    ["Total leads", metrics.totalLeads.toString(), UsersRound, "/leads"],
+    ["New leads this week", "5", UsersRound, "/leads/new"],
+    ["Hot leads", "5", Flame, "/money-today"],
+    ["Leads needing contact", needingContact.toString(), CalendarCheck2, "/money-today"],
+    ["Pending quote value", currency(metrics.pendingQuoteValue), WalletCards, "/money-today"],
+    ["Average quote value", currency(metrics.averageQuoteValue), Target, "/reports/revenue"],
+    ["Quote acceptance rate", percent(metrics.quoteAcceptanceRate), Trophy, "/reports/revenue"],
+    ["Lead-to-quote rate", percent(metrics.leadToQuoteRate), Send, "/reports/revenue"]
   ] as const;
 
   return (
@@ -45,4 +42,3 @@ export function DashboardOverview({ leads }: { leads: Lead[] }) {
     </div>
   );
 }
-

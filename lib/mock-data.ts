@@ -367,6 +367,41 @@ export const quotes: Quote[] = [
     terms: "60% deposit required to book Sunday installation team.",
     createdAt: "2026-05-12",
     expiryDate: "2026-05-20"
+  },
+  {
+    id: "quote-6",
+    leadId: "lead-8",
+    clientName: "Memory Zhou",
+    businessName: "Zambezi Events",
+    quoteNumber: "CBS-2026-006",
+    serviceCategory: "Pull-up banners",
+    lineItems: [
+      { id: "qli-11", description: "Economy pull-up banners", quantity: 2, unitPrice: 230 }
+    ],
+    discount: 0,
+    status: "Rejected",
+    notes: "Client chose a cheaper supplier but can be revived later.",
+    terms: "Full payment before production on small-format jobs.",
+    createdAt: "2026-04-01",
+    expiryDate: "2026-04-12"
+  },
+  {
+    id: "quote-7",
+    leadId: "lead-10",
+    clientName: "Lisa Gumbo",
+    businessName: "Avonlea Health Clinic",
+    quoteNumber: "CBS-2026-007",
+    serviceCategory: "Safety signs and vinyl",
+    lineItems: [
+      { id: "qli-12", description: "Clinic safety sign refresh", quantity: 1, unitPrice: 680 },
+      { id: "qli-13", description: "Door vinyl labels", quantity: 6, unitPrice: 50 }
+    ],
+    discount: 0,
+    status: "Paid",
+    notes: "Paid customer due for testimonial and referral request.",
+    terms: "Paid in full before production.",
+    createdAt: "2026-05-06",
+    expiryDate: "2026-05-16"
   }
 ];
 
@@ -420,6 +455,7 @@ export const contentCategories = [
   { name: "Vehicle branding", value: 21 },
   { name: "Banners and vinyl", value: 20 }
 ];
+
 
 
 

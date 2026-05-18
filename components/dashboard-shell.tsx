@@ -2,17 +2,20 @@
   BarChart3,
   Bot,
   CalendarClock,
+  CircleDollarSign,
   FileText,
   LayoutDashboard,
   Mail,
   MessageSquareText,
   ReceiptText,
   Sparkles,
+  TrendingUp,
   UsersRound
 } from "lucide-react";
 
 const nav = [
   ["Dashboard", "/#dashboard", LayoutDashboard],
+  ["Money Today", "/money-today", CircleDollarSign],
   ["Follow-Ups", "/follow-ups", MessageSquareText],
   ["Quotes", "/quotes", ReceiptText],
   ["AI Strategy", "/#strategy", Bot],
@@ -21,7 +24,8 @@ const nav = [
   ["Content", "/#content", Sparkles],
   ["Campaigns", "/#campaigns", Mail],
   ["Automation", "/#automation", CalendarClock],
-  ["Reports", "/#reports", FileText]
+  ["Reports", "/#reports", FileText],
+  ["Revenue Report", "/reports/revenue", TrendingUp]
 ] as const;
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -71,5 +75,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
 
 

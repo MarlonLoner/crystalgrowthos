@@ -19,6 +19,9 @@ Internal AI-powered marketing department dashboard for Crystal Branding Studio.
 - Lead database with contact, business, status, birthday, notes, source, deal value, estimated value, and next follow-up data
 - Lead management pages for list, create, detail, and edit workflows
 - WhatsApp execution actions with Zimbabwe phone formatting and wa.me links
+- Money Today revenue command center for the actions worth chasing now
+- Revenue Intelligence calculations for quote value, close rates, source quality, and top opportunities
+- Revenue Report route for pipeline quality and money movement
 - Sales pipeline with moveable stages
 - Follow-Up Queue for daily money actions
 - Quote Builder with quote list, create, edit, detail, and PDF-style preview screens
@@ -72,6 +75,15 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+## Money Today + Revenue Intelligence
+
+Visit `/money-today` for the daily revenue command center. It shows follow-ups due today, overdue follow-ups, new leads not contacted, quotes waiting for response, highest-value open opportunities, dormant customers, birthdays this month, suggested WhatsApp actions, and a mocked AI Revenue Brief.
+
+The Money Today table scores each action as High, Medium, or Low priority using estimated deal value, quote value, lead status, quote status, days since last contact, overdue follow-ups, pending quotes, and service category. Each row includes Copy Message, Open WhatsApp, View Lead, Create Quote, View Quote, and a mock Mark Done action.
+
+Visit `/reports/revenue` for the revenue report. It shows total leads, new leads this month, quote counts by status, pending/won/lost quote value, average quote value, lead-to-quote rate, quote acceptance rate, quote-to-win rate, best lead source, best service category, and the top 5 open opportunities.
+
+This layer helps the team start each day with a short list of money actions instead of browsing admin screens.
 ## Lead Capture + WhatsApp Execution
 
 Visit `/leads` to manage the lead list. Use `/leads/new` to capture a new opportunity, `/leads/lead-1` to inspect a lead, and `/leads/lead-1/edit` to test the edit form.
@@ -210,5 +222,6 @@ npm run build
 ```
 
 This SWC issue is environment-specific and should not require rewriting the app.
+
 
 

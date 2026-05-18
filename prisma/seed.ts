@@ -87,6 +87,32 @@ const quoteSeeds = [
     terms: "60% deposit required to book Sunday installation team.",
     expiryDate: "2026-05-20",
     items: [["Large 3D exterior sign", 1, "1780.00"], ["Sunday installation allowance", 1, "320.00"]]
+  },
+  {
+    leadId: "lead-8",
+    quoteNumber: "CBS-2026-006",
+    clientName: "Memory Zhou",
+    businessName: "Zambezi Events",
+    serviceCategory: "Pull-up banners",
+    discount: "0.00",
+    status: QuoteStatus.REJECTED,
+    notes: "Client chose a cheaper supplier but can be revived later.",
+    terms: "Full payment before production on small-format jobs.",
+    expiryDate: "2026-04-12",
+    items: [["Economy pull-up banners", 2, "230.00"]]
+  },
+  {
+    leadId: "lead-10",
+    quoteNumber: "CBS-2026-007",
+    clientName: "Lisa Gumbo",
+    businessName: "Avonlea Health Clinic",
+    serviceCategory: "Safety signs and vinyl",
+    discount: "0.00",
+    status: QuoteStatus.PAID,
+    notes: "Paid customer due for testimonial and referral request.",
+    terms: "Paid in full before production.",
+    expiryDate: "2026-05-16",
+    items: [["Clinic safety sign refresh", 1, "680.00"], ["Door vinyl labels", 6, "50.00"]]
   }
 ] as const;
 
@@ -222,6 +248,7 @@ main()
     await prisma.$disconnect();
     process.exit(1);
   });
+
 
 
 
