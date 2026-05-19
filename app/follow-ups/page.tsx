@@ -1,10 +1,15 @@
-import { DashboardShell } from "@/components/dashboard-shell";
+﻿import { DashboardShell } from "@/components/dashboard-shell";
 import { FollowUpQueue } from "@/components/follow-up-queue";
+import { getRevenueSourceData } from "@/lib/db-data";
 
-export default function FollowUpsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function FollowUpsPage() {
+  const data = await getRevenueSourceData();
+
   return (
     <DashboardShell>
-      <FollowUpQueue />
+      <FollowUpQueue leads={data.leads} quotes={data.quotes} />
     </DashboardShell>
   );
 }

@@ -182,7 +182,7 @@ function requireIntakeFields(formData: FormData, fields: string[]) {
 }
 
 function revalidateIntakeRoutes(leadId?: string) {
-  ["/", "/leads", "/follow-ups", "/money-today", "/intake/inbox"].forEach((path) => revalidatePath(path));
+  ["/", "/leads", "/follow-ups", "/money-today", "/intake/inbox", "/reports/revenue"].forEach((path) => revalidatePath(path));
   if (leadId) revalidatePath(`/leads/${leadId}`);
 }
 
@@ -209,17 +209,19 @@ export async function createIntakeLeadAction(formData: FormData) {
       source,
       serviceInterestedIn: requiredString(formData, "serviceInterestedIn"),
       status: LeadStatus.NEW_LEAD,
-      dealValue: "0",
+      dealValue: budgetEstimate(budgetRange),
       estimatedDealValue: budgetEstimate(budgetRange),
       notes,
+      lastContactedAt: null,
       nextFollowUpAt: new Date(),
       nextFollowUpDate: new Date(),
       activities: {
         create: {
           type: FollowUpActivityType.WHATSAPP,
-          title: "New website intake lead",
+          title: "New lead first response",
           note: `Send first response for ${requiredString(formData, "serviceInterestedIn")}. Urgency: ${urgency || "Not provided"}. Budget: ${budgetRange || "Not provided"}.`,
-          dueAt: new Date()
+          dueAt: new Date(),
+          completedAt: null
         }
       }
     }
@@ -261,9 +263,10 @@ export async function createShopfrontIntakeLeadAction(formData: FormData) {
       source,
       serviceInterestedIn,
       status: LeadStatus.NEW_LEAD,
-      dealValue: "0",
+      dealValue: budgetEstimate(budgetRange),
       estimatedDealValue: budgetEstimate(budgetRange),
       notes,
+      lastContactedAt: null,
       nextFollowUpAt: new Date(),
       nextFollowUpDate: new Date(),
       activities: {
@@ -271,7 +274,8 @@ export async function createShopfrontIntakeLeadAction(formData: FormData) {
           type: FollowUpActivityType.WHATSAPP,
           title: "New shopfront mockup request",
           note: `Service: ${serviceInterestedIn}. Urgency: ${urgency || "Not provided"}. Shopfront: ${shopfrontImageUrl || "Not provided"}. Logo: ${logoUrl || "Not provided"}.`,
-          dueAt: new Date()
+          dueAt: new Date(),
+          completedAt: null
         }
       }
     }
@@ -436,4 +440,7 @@ export async function scheduleFollowUpTomorrowAction(quoteId: string) {
     };
   }
 }
+
+
+
 

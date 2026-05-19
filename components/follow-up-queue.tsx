@@ -2,12 +2,13 @@
 
 import { CheckCircle2, FilePlus2, Mail, MessageCircle, MoveRight } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Lead, leads, quotes, today } from "@/lib/mock-data";
+import { Lead, Quote, leads as mockLeads, quotes as mockQuotes, today } from "@/lib/mock-data";
 import { generateEmailScript, generateWhatsAppScript } from "@/lib/scripts";
 import { currency, formatDate } from "@/lib/utils";
 import { Panel, SectionHeading } from "@/components/ui";
 import { WhatsAppScriptGenerator } from "@/components/whatsapp-script-generator";
 import { WhatsAppAction } from "@/components/whatsapp-action";
+import { ActionButton } from "@/components/action-button";
 
 function month(value: string) {
   return new Date(value).getMonth();
@@ -18,10 +19,10 @@ function daysSince(value: string | null) {
   return Math.floor((new Date(today).getTime() - new Date(value).getTime()) / 86400000);
 }
 
-function getFollowUpReason(lead: Lead) {
+function getFollowUpReason(lead: Lead, sourceQuotes: Quote[]) {
   const due = new Date(lead.nextFollowUpDate);
   const now = new Date(today);
-  const hasPendingQuote = quotes.some((quote) => quote.leadId === lead.id && ["Sent", "Viewed", "Follow-Up Due"].includes(quote.status));
+  const hasPendingQuote = sourceQuotes.some((quote) => quote.leadId === lead.id && ["Sent", "Viewed", "Follow-Up Due"].includes(quote.status));
 
   if (!lead.lastContactedAt) return "Lead has not been contacted yet";
   if (due < now) return "Follow-up is overdue";
@@ -40,19 +41,19 @@ function suggestedAction(lead: Lead) {
   return "Call or WhatsApp today and move the lead to the next pipeline stage.";
 }
 
-function shouldShow(lead: Lead) {
+function shouldShow(lead: Lead, sourceQuotes: Quote[]) {
   const due = new Date(lead.nextFollowUpDate) <= new Date(today);
-  const hasPendingQuote = quotes.some((quote) => quote.leadId === lead.id && ["Sent", "Viewed", "Follow-Up Due"].includes(quote.status));
+  const hasPendingQuote = sourceQuotes.some((quote) => quote.leadId === lead.id && ["Sent", "Viewed", "Follow-Up Due"].includes(quote.status));
   const birthdayThisMonth = month(lead.birthday) === month(today);
   const dormant = lead.isCustomer && daysSince(lead.lastContactedAt) > 90;
   return !lead.lastContactedAt || due || hasPendingQuote || birthdayThisMonth || dormant;
 }
 
-export function FollowUpQueue() {
-  const [selectedLead, setSelectedLead] = useState<Lead>(leads[0]);
+export function FollowUpQueue({ leads = mockLeads, quotes = mockQuotes }: { leads?: Lead[]; quotes?: Quote[] }) {
+  const [selectedLead, setSelectedLead] = useState<Lead>(leads[0] ?? mockLeads[0]);
   const [generated, setGenerated] = useState<string>("");
 
-  const queue = useMemo(() => leads.filter(shouldShow), []);
+  const queue = useMemo(() => leads.filter((lead) => shouldShow(lead, quotes)), [leads, quotes]);
 
   function generateMessage(lead: Lead, channel: "whatsapp" | "email") {
     setSelectedLead(lead);
@@ -107,13 +108,13 @@ export function FollowUpQueue() {
                     <td className="px-4 py-4">{formatDate(lead.lastContactedAt)}</td>
                     <td className="px-4 py-4">{formatDate(lead.nextFollowUpDate)}</td>
                     <td className="px-4 py-4 font-bold">{currency(lead.dealValue)}</td>
-                    <td className="px-4 py-4 text-mercury">{getFollowUpReason(lead)}</td>
+                    <td className="px-4 py-4 text-mercury">{getFollowUpReason(lead, quotes)}</td>
                     <td className="px-4 py-4 text-mercury">{suggestedAction(lead)}</td>
                     <td className="px-4 py-4">
                       <div className="flex flex-wrap gap-2">
                         <button className="rounded-lg bg-aurum px-3 py-2 text-xs font-black text-obsidian" onClick={() => generateMessage(lead, "whatsapp")}><MessageCircle size={14} className="inline" /> WhatsApp</button>
                         <button className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" onClick={() => generateMessage(lead, "email")}><Mail size={14} className="inline" /> Email</button>
-                        <button className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><CheckCircle2 size={14} className="inline" /> Mark</button>
+                        <ActionButton action="mark-contacted" leadId={lead.id} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><CheckCircle2 size={14} className="inline" /> Mark Contacted</ActionButton>
                         <button className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><MoveRight size={14} className="inline" /> Stage</button>
                         <a className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/quotes/new?lead=${lead.id}`}><FilePlus2 size={14} className="inline" /> Quote</a>
                       </div>
@@ -139,6 +140,8 @@ export function FollowUpQueue() {
     </div>
   );
 }
+
+
 
 
 

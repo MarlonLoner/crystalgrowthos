@@ -3,9 +3,11 @@
 import { CheckCircle2, Eye, FilePlus2, ReceiptText } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { getAiRevenueBrief, getMoneyActionItems, getRevenueMetrics, Priority } from "@/lib/revenue-intelligence";
+import { getAiRevenueBrief, getMoneyActionItems, getRevenueMetrics, Priority, RevenueActivity } from "@/lib/revenue-intelligence";
+import { Lead, Quote } from "@/lib/mock-data";
 import { currency, formatDate } from "@/lib/utils";
 import { WhatsAppAction } from "@/components/whatsapp-action";
+import { ActionButton } from "@/components/action-button";
 import { Panel, SectionHeading } from "@/components/ui";
 
 const priorityClass: Record<Priority, string> = {
@@ -18,11 +20,11 @@ function percent(value: number) {
   return `${Math.round(value * 100)}%`;
 }
 
-export function MoneyToday() {
+export function MoneyToday({ leads, quotes, activities }: { leads: Lead[]; quotes: Quote[]; activities: RevenueActivity[] }) {
   const [done, setDone] = useState<string[]>([]);
-  const items = useMemo(() => getMoneyActionItems().filter((item) => !done.includes(item.id)), [done]);
-  const metrics = getRevenueMetrics();
-  const brief = getAiRevenueBrief();
+  const items = useMemo(() => getMoneyActionItems(leads, quotes).filter((item) => !done.includes(item.id)), [leads, quotes, done]);
+  const metrics = getRevenueMetrics(leads, quotes, activities);
+  const brief = getAiRevenueBrief(leads, quotes);
 
   const cards = [
     ["Pending Quote Value", currency(metrics.pendingQuoteValue)],
@@ -109,7 +111,7 @@ export function MoneyToday() {
                       <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/leads/${item.lead.id}`}><Eye size={14} className="inline" /> View Lead</Link>
                       <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/quotes/new?lead=${item.lead.id}`}><FilePlus2 size={14} className="inline" /> Create Quote</Link>
                       {item.quote ? <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/quotes/${item.quote.id}`}><ReceiptText size={14} className="inline" /> View Quote</Link> : null}
-                      <button type="button" onClick={() => setDone((current) => [...current, item.id])} className="rounded-lg bg-emerald-400 px-3 py-2 text-xs font-black text-obsidian"><CheckCircle2 size={14} className="inline" /> Mark Done</button>
+                      <ActionButton action="complete-follow-up" leadId={item.lead.id} note={item.reason} className="rounded-lg bg-emerald-400 px-3 py-2 text-xs font-black text-obsidian"><CheckCircle2 size={14} className="inline" /> Mark Done</ActionButton>
                     </div>
                   </td>
                 </tr>
@@ -121,3 +123,7 @@ export function MoneyToday() {
     </div>
   );
 }
+
+
+
+

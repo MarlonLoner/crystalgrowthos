@@ -1,13 +1,19 @@
-﻿import { Lead, Quote, followUpActivities, leads, quoteFinalTotal, quotes, today } from "@/lib/mock-data";
+﻿import { Lead, Quote, followUpActivities as mockActivities, leads as mockLeads, quoteFinalTotal, quotes as mockQuotes } from "@/lib/mock-data";
 import { generateWhatsAppScript, ScriptType } from "@/lib/scripts";
 
 export type Priority = "High" | "Medium" | "Low";
+
+function currentDay() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 export type SuggestedAction = {
   title: string;
   reason: string;
   message: string;
 };
+
+export type RevenueActivity = { completedAt: string | null };
 
 export type MoneyActionItem = {
   id: string;
@@ -19,7 +25,7 @@ export type MoneyActionItem = {
   suggestedAction: SuggestedAction;
 };
 
-function dateDiffDays(from: string | null | undefined, to = today) {
+function dateDiffDays(from: string | null | undefined, to = currentDay()) {
   if (!from) return 999;
   return Math.floor((new Date(to).getTime() - new Date(from).getTime()) / 86400000);
 }
@@ -36,15 +42,15 @@ function isWonQuote(quote: Quote) {
   return ["Accepted", "Paid"].includes(quote.status);
 }
 
-function relatedQuoteForLead(lead: Lead) {
-  return quotes.find((quote) => quote.leadId === lead.id && isPendingQuote(quote)) ?? quotes.find((quote) => quote.leadId === lead.id);
+function relatedQuoteForLead(lead: Lead, sourceQuotes: Quote[]) {
+  return sourceQuotes.find((quote) => quote.leadId === lead.id && isPendingQuote(quote)) ?? sourceQuotes.find((quote) => quote.leadId === lead.id);
 }
 
 export function getPriority(lead: Lead, quote?: Quote): Priority {
   const quoteValue = quote ? quoteFinalTotal(quote) : 0;
   const value = Math.max(lead.estimatedDealValue, quoteValue);
   const days = dateDiffDays(lead.lastContactedAt);
-  const overdue = new Date(lead.nextFollowUpDate) < new Date(today);
+  const overdue = new Date(lead.nextFollowUpDate) < new Date(currentDay());
   const hotStatus = ["Quote Sent", "Follow-Up Needed", "Negotiating"].includes(lead.status);
   const pendingQuote = quote ? isPendingQuote(quote) : false;
   const highValueService = ["3D signage", "Vehicle branding", "Shopfront branding"].some((service) =>
@@ -114,19 +120,19 @@ export function getSuggestedAction(lead: Lead, quote?: Quote): SuggestedAction {
   };
 }
 
-export function getMoneyActionItems(): MoneyActionItem[] {
-  const items = leads
+export function getMoneyActionItems(sourceLeads: Lead[] = mockLeads, sourceQuotes: Quote[] = mockQuotes): MoneyActionItem[] {
+  const items = sourceLeads
     .filter((lead) => {
-      const quote = relatedQuoteForLead(lead);
-      const due = new Date(lead.nextFollowUpDate) <= new Date(today);
-      const birthdayThisMonth = new Date(lead.birthday).getMonth() === new Date(today).getMonth();
+      const quote = relatedQuoteForLead(lead, sourceQuotes);
+      const due = new Date(lead.nextFollowUpDate) <= new Date(currentDay());
+      const birthdayThisMonth = new Date(lead.birthday).getMonth() === new Date(currentDay()).getMonth();
       const dormant = Boolean(lead.isCustomer && dateDiffDays(lead.lastContactedAt) > 60);
       return due || !lead.lastContactedAt || (quote && isPendingQuote(quote)) || dormant || birthdayThisMonth;
     })
     .map((lead) => {
-      const quote = relatedQuoteForLead(lead);
+      const quote = relatedQuoteForLead(lead, sourceQuotes);
       const quoteValue = quote ? quoteFinalTotal(quote) : 0;
-      const overdue = new Date(lead.nextFollowUpDate) < new Date(today);
+      const overdue = new Date(lead.nextFollowUpDate) < new Date(currentDay());
       const reason = !lead.lastContactedAt
         ? "New lead not contacted"
         : quote && isPendingQuote(quote)
@@ -135,7 +141,7 @@ export function getMoneyActionItems(): MoneyActionItem[] {
             ? "Follow-up overdue"
             : lead.isCustomer && dateDiffDays(lead.lastContactedAt) > 60
               ? "Dormant customer to revive"
-              : new Date(lead.birthday).getMonth() === new Date(today).getMonth()
+              : new Date(lead.birthday).getMonth() === new Date(currentDay()).getMonth()
                 ? "Birthday this month"
                 : "Follow-up due today";
 
@@ -154,51 +160,51 @@ export function getMoneyActionItems(): MoneyActionItem[] {
   return items.sort((a, b) => order[a.priority] - order[b.priority] || Math.max(b.lead.estimatedDealValue, b.quoteValue) - Math.max(a.lead.estimatedDealValue, a.quoteValue));
 }
 
-export function getRevenueMetrics() {
-  const month = new Date(today).getMonth();
-  const newLeadsThisMonth = leads.filter((lead) => new Date(lead.createdAt).getMonth() === month).length;
-  const pendingQuotes = quotes.filter(isPendingQuote);
-  const wonQuotes = quotes.filter(isWonQuote);
-  const rejectedQuotes = quotes.filter((quote) => quote.status === "Rejected");
-  const paidQuotes = quotes.filter((quote) => quote.status === "Paid");
-  const sentQuotes = quotes.filter((quote) => ["Sent", "Viewed", "Follow-Up Due", "Accepted", "Paid", "Rejected"].includes(quote.status));
-  const overdueQuotes = pendingQuotes.filter((quote) => new Date(quote.expiryDate) < new Date(today) || quote.status === "Follow-Up Due");
-  const hotLeads = leads.filter((lead) => isOpenLead(lead) && ["Quote Requested", "Quote Sent", "Follow-Up Needed", "Negotiating"].includes(lead.status));
-  const quoteValues = quotes.map(quoteFinalTotal);
-  const leadSources = countBy(leads.map((lead) => lead.source));
-  const serviceCategories = countBy([...leads.map((lead) => lead.serviceInterestedIn), ...quotes.map((quote) => quote.serviceCategory)]);
+export function getRevenueMetrics(sourceLeads: Lead[] = mockLeads, sourceQuotes: Quote[] = mockQuotes, sourceActivities: RevenueActivity[] = mockActivities) {
+  const month = new Date(currentDay()).getMonth();
+  const newLeadsThisMonth = sourceLeads.filter((lead) => new Date(lead.createdAt).getMonth() === month).length;
+  const pendingQuotes = sourceQuotes.filter(isPendingQuote);
+  const wonQuotes = sourceQuotes.filter(isWonQuote);
+  const rejectedQuotes = sourceQuotes.filter((quote) => quote.status === "Rejected");
+  const paidQuotes = sourceQuotes.filter((quote) => quote.status === "Paid");
+  const sentQuotes = sourceQuotes.filter((quote) => ["Sent", "Viewed", "Follow-Up Due", "Accepted", "Paid", "Rejected"].includes(quote.status));
+  const overdueQuotes = pendingQuotes.filter((quote) => new Date(quote.expiryDate) < new Date(currentDay()) || quote.status === "Follow-Up Due");
+  const hotLeads = sourceLeads.filter((lead) => isOpenLead(lead) && ["Quote Requested", "Quote Sent", "Follow-Up Needed", "Negotiating"].includes(lead.status));
+  const quoteValues = sourceQuotes.map(quoteFinalTotal);
+  const leadSources = countBy(sourceLeads.map((lead) => lead.source));
+  const serviceCategories = countBy([...sourceLeads.map((lead) => lead.serviceInterestedIn), ...sourceQuotes.map((quote) => quote.serviceCategory)]);
 
   return {
-    totalLeads: leads.length,
+    totalLeads: sourceLeads.length,
     newLeadsThisMonth,
-    quotesCreated: quotes.length,
+    quotesCreated: sourceQuotes.length,
     quotesSent: sentQuotes.length,
-    quotesAccepted: quotes.filter((quote) => quote.status === "Accepted").length,
+    quotesAccepted: sourceQuotes.filter((quote) => quote.status === "Accepted").length,
     quotesRejected: rejectedQuotes.length,
     quotesPaid: paidQuotes.length,
     pendingQuoteValue: sumQuotes(pendingQuotes),
     overdueQuoteValue: sumQuotes(overdueQuotes),
     hotLeadValue: hotLeads.reduce((total, lead) => total + lead.estimatedDealValue, 0),
     wonRevenueThisMonth: sumQuotes(wonQuotes.filter((quote) => new Date(quote.createdAt).getMonth() === month)),
-    lostOpportunityValue: rejectedQuotes.reduce((total, quote) => total + quoteFinalTotal(quote), 0) + leads.filter((lead) => lead.status === "Lost").reduce((total, lead) => total + lead.estimatedDealValue, 0),
+    lostOpportunityValue: rejectedQuotes.reduce((total, quote) => total + quoteFinalTotal(quote), 0) + sourceLeads.filter((lead) => lead.status === "Lost").reduce((total, lead) => total + lead.estimatedDealValue, 0),
     averageQuoteValue: quoteValues.length ? quoteValues.reduce((total, value) => total + value, 0) / quoteValues.length : 0,
-    leadToQuoteRate: leads.length ? quotes.length / leads.length : 0,
+    leadToQuoteRate: sourceLeads.length ? sourceQuotes.length / sourceLeads.length : 0,
     quoteAcceptanceRate: sentQuotes.length ? wonQuotes.length / sentQuotes.length : 0,
-    quoteToWinRate: quotes.length ? wonQuotes.length / quotes.length : 0,
+    quoteToWinRate: sourceQuotes.length ? wonQuotes.length / sourceQuotes.length : 0,
     bestLeadSource: topEntry(leadSources),
     bestServiceCategory: topEntry(serviceCategories),
-    topOpenOpportunities: leads
+    topOpenOpportunities: sourceLeads
       .filter(isOpenLead)
-      .map((lead) => ({ lead, quote: relatedQuoteForLead(lead), value: Math.max(lead.estimatedDealValue, relatedQuoteForLead(lead) ? quoteFinalTotal(relatedQuoteForLead(lead) as Quote) : 0) }))
+      .map((lead) => ({ lead, quote: relatedQuoteForLead(lead, sourceQuotes), value: Math.max(lead.estimatedDealValue, relatedQuoteForLead(lead, sourceQuotes) ? quoteFinalTotal(relatedQuoteForLead(lead, sourceQuotes) as Quote) : 0) }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 5),
-    completedActivities: followUpActivities.filter((activity) => activity.completedAt).length
+    completedActivities: sourceActivities.filter((activity) => activity.completedAt).length
   };
 }
 
-export function getAiRevenueBrief() {
-  const metrics = getRevenueMetrics();
-  const actions = getMoneyActionItems();
+export function getAiRevenueBrief(sourceLeads: Lead[] = mockLeads, sourceQuotes: Quote[] = mockQuotes) {
+  const metrics = getRevenueMetrics(sourceLeads, sourceQuotes);
+  const actions = getMoneyActionItems(sourceLeads, sourceQuotes);
   const biggest = actions[0];
   const totalChaseValue = actions.reduce((total, item) => total + Math.max(item.lead.estimatedDealValue, item.quoteValue), 0);
   const riskCount = actions.filter((item) => item.reason.includes("Quote") || item.reason.includes("overdue")).length;
@@ -230,3 +236,6 @@ function topEntry(values: Record<string, number>) {
   const [name = "None", count = 0] = Object.entries(values).sort((a, b) => b[1] - a[1])[0] ?? [];
   return { name, count };
 }
+
+
+

@@ -114,6 +114,15 @@ export async function getLeadsForPage() {
   }
 }
 
+export async function getLeadsPageData() {
+  try {
+    const dbLeads = await prisma.lead.findMany({ orderBy: { createdAt: "desc" } });
+    return { source: "database" as const, leads: dbLeads.map(mapLead) };
+  } catch (error) {
+    console.error("[leads-page] database lookup failed", error);
+    return { source: "fallback" as const, leads };
+  }
+}
 export async function getLeadDetailForPage(id: string) {
   try {
     const dbLead = await prisma.lead.findUnique({
@@ -290,4 +299,5 @@ export async function getIntakeInboxData() {
     };
   }
 }
+
 
