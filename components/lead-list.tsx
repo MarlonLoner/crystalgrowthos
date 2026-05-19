@@ -1,12 +1,36 @@
 ﻿import { Edit, Eye, FilePlus2, Plus } from "lucide-react";
 import Link from "next/link";
-import { leads } from "@/lib/mock-data";
+import type { LeadStage } from "@/lib/mock-data";
+
 import { generateWhatsAppScript } from "@/lib/scripts";
 import { currency, formatDate } from "@/lib/utils";
 import { WhatsAppAction } from "@/components/whatsapp-action";
 import { buttonClass, Panel, SectionHeading } from "@/components/ui";
 
-export function LeadList() {
+export type LeadListItem = {
+  id: string;
+  name: string;
+  phone: string;
+  businessName: string;
+  businessType: string;
+  source: string;
+  serviceInterestedIn: string;
+  status: LeadStage;
+  dealValue: number;
+  estimatedDealValue: number;
+  birthday: string;
+  notes: string;
+  createdAt: string;
+  lastContactedAt: string | null;
+  nextFollowUpDate: string;
+  isCustomer?: boolean;
+};
+
+type LeadListProps = {
+  leads?: LeadListItem[];
+};
+
+export function LeadList({ leads = [] }: LeadListProps) {
   return (
     <Panel>
       <SectionHeading
@@ -52,4 +76,7 @@ export function LeadList() {
     </Panel>
   );
 }
+
+
+
 
