@@ -197,3 +197,97 @@ export async function getRevenueSourceData() {
 
 
 
+
+export type IntakeInboxItem = Lead & {
+  urgency: string;
+  suggestedNextAction: string;
+  isHighUrgency: boolean;
+};
+
+function parseNoteValue(notes: string, label: string) {
+  const line = notes.split(/\r?\n/).find((item) => item.toLowerCase().startsWith(`${label.toLowerCase()}:`));
+  return line ? line.slice(label.length + 1).trim() : "Not provided";
+}
+
+function intakeSuggestion(lead: Lead, urgency: string) {
+  if (urgency.toLowerCase().includes("urgent") || urgency.toLowerCase().includes("today")) {
+    return "Send WhatsApp now and ask for photos, measurements, and decision deadline.";
+  }
+
+  if (lead.source.toLowerCase().includes("shopfront")) {
+    return "Confirm mockup assets and ask when they want installation or production.";
+  }
+
+  return "Send first response, confirm brief details, and move the lead toward a quote.";
+}
+
+function toIntakeItem(lead: Lead): IntakeInboxItem {
+  const urgency = parseNoteValue(lead.notes, "Urgency");
+  return {
+    ...lead,
+    urgency,
+    suggestedNextAction: intakeSuggestion(lead, urgency),
+    isHighUrgency: /urgent|today|24|this week/i.test(urgency)
+  };
+}
+
+export async function getRecentIntakeLeads() {
+  try {
+    const dbLeads = await prisma.lead.findMany({
+      where: {
+        OR: [
+          { source: { contains: "Website intake", mode: "insensitive" } },
+          { source: { contains: "Shopfront mockup", mode: "insensitive" } }
+        ]
+      },
+      orderBy: { createdAt: "desc" },
+      take: 12
+    });
+
+    return { source: "database" as const, leads: dbLeads.map(mapLead).map(toIntakeItem) };
+  } catch (error) {
+    console.error("[intake-inbox] database lookup failed", error);
+    const fallback = leads
+      .filter((lead) => /website|shopfront/i.test(lead.source))
+      .map(toIntakeItem);
+    return { source: "fallback" as const, leads: fallback };
+  }
+}
+
+export async function getIntakeInboxData() {
+  try {
+    const dbLeads = await prisma.lead.findMany({
+      where: {
+        OR: [
+          { source: { contains: "Website intake", mode: "insensitive" } },
+          { source: { contains: "Shopfront mockup", mode: "insensitive" } },
+          { lastContactedAt: null }
+        ]
+      },
+      orderBy: [{ lastContactedAt: "asc" }, { createdAt: "desc" }],
+      take: 40
+    });
+
+    const items = dbLeads.map(mapLead).map(toIntakeItem);
+    return {
+      source: "database" as const,
+      items,
+      newWebsiteLeads: items.filter((lead) => /website intake/i.test(lead.source)),
+      shopfrontRequests: items.filter((lead) => /shopfront mockup/i.test(lead.source)),
+      uncontactedLeads: items.filter((lead) => !lead.lastContactedAt),
+      highUrgencyLeads: items.filter((lead) => lead.isHighUrgency)
+    };
+  } catch (error) {
+    console.error("[intake-inbox] database lookup failed", error);
+    const items = leads.filter((lead) => /website|shopfront/i.test(lead.source) || !lead.lastContactedAt).map(toIntakeItem);
+    return {
+      source: "fallback" as const,
+      items,
+      newWebsiteLeads: items.filter((lead) => /website intake/i.test(lead.source)),
+      shopfrontRequests: items.filter((lead) => /shopfront mockup/i.test(lead.source)),
+      uncontactedLeads: items.filter((lead) => !lead.lastContactedAt),
+      highUrgencyLeads: items.filter((lead) => lead.isHighUrgency)
+    };
+  }
+}
+

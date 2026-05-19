@@ -18,6 +18,8 @@ Internal AI-powered marketing department dashboard for Crystal Branding Studio.
 - Dashboard metrics for leads, quote value, wins, overdue follow-ups, dormant customers, campaigns, and pipeline value
 - Lead database with contact, business, status, birthday, notes, source, deal value, estimated value, and next follow-up data
 - Lead management pages for list, create, detail, and edit workflows
+- Public intake forms for website leads and shopfront mockup requests
+- Intake Inbox for responding to new website and high-urgency leads
 - WhatsApp execution actions with Zimbabwe phone formatting and wa.me links
 - Money Today revenue command center for the actions worth chasing now
 - Revenue Intelligence calculations for quote value, close rates, source quality, and top opportunities
@@ -75,6 +77,75 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+## Lead Intake + Website Capture
+
+Crystal Growth OS now includes public lead capture routes that create real PostgreSQL leads and first-response follow-up activities.
+
+Public routes:
+
+```text
+/intake
+/intake/shopfront
+/intake/thank-you
+```
+
+Internal route:
+
+```text
+/intake/inbox
+```
+
+Use `/intake` for general branding, signage, vehicle branding, vinyl, banner, and logo inquiries. Use `/intake/shopfront` for the free shopfront mockup offer. The shopfront form accepts image/logo URLs for now; real file upload storage can be added later with Cloudinary or Supabase Storage.
+
+To test public intake locally:
+
+1. Start the app with `npm run dev`.
+2. Open `/intake` and submit a test lead.
+3. Confirm redirect to `/intake/thank-you`.
+4. Open `/leads` and confirm the lead exists.
+5. Open `/follow-ups` and confirm the first-response activity exists.
+6. Open `/money-today` and confirm the new lead appears.
+
+To test shopfront mockup intake:
+
+1. Open `/intake/shopfront`.
+2. Submit a request with shopfront/logo URLs or notes.
+3. Open `/intake/inbox`.
+4. Confirm the request appears with urgency, source, suggested next action, WhatsApp action, View Lead, and Create Quote buttons.
+
+The Intake Inbox reads PostgreSQL first and shows a fallback warning if demo data is being used because the database is unavailable.
+## Real Action Persistence
+
+Crystal Growth OS now persists key sales actions through App Router server actions.
+
+Test lead creation and editing:
+
+```text
+/leads/new
+/leads/lead-1/edit
+```
+
+Creating a lead writes a real `Lead` record and redirects to the new lead detail page. Editing a lead updates the real record and redirects back to that lead.
+
+Test contact and follow-up completion:
+
+```text
+/leads/lead-1
+/follow-ups
+/money-today
+```
+
+Use Mark Contacted to update `lastContactedAt`, set the next follow-up date, and create a completed `FollowUpActivity`. Use Mark Done on follow-up activity rows to complete an existing activity or create a completed activity for generated action items.
+
+Test quote status updates:
+
+```text
+/quotes/quote-1
+```
+
+The quote detail page can mark a quote as Sent, Viewed, Accepted, Rejected, or Paid. Sent quotes move the related lead to Quote Sent and schedule follow-up. Accepted or Paid quotes move the lead to Won. Rejected quotes move the lead to Lost. Set Follow-up for Tomorrow creates a `WHATSAPP` follow-up activity.
+
+After actions, affected routes are revalidated: `/leads`, `/follow-ups`, `/money-today`, `/quotes`, quote detail, lead detail, revenue report, and the dashboard.
 ## Money Today + Revenue Intelligence
 
 Visit `/money-today` for the daily revenue command center. It shows follow-ups due today, overdue follow-ups, new leads not contacted, quotes waiting for response, highest-value open opportunities, dormant customers, birthdays this month, suggested WhatsApp actions, and a mocked AI Revenue Brief.
@@ -222,6 +293,8 @@ npm run build
 ```
 
 This SWC issue is environment-specific and should not require rewriting the app.
+
+
 
 
 

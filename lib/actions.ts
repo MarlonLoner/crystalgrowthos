@@ -165,6 +165,121 @@ export async function completeFollowUpActivityAction(input: { leadId: string; ac
   return { ok: true, message: "Follow-up marked done" };
 }
 
+function budgetEstimate(value: string) {
+  const text = value.toLowerCase();
+  if (text.includes("2000") || text.includes("5000")) return "2500";
+  if (text.includes("1000")) return "1200";
+  if (text.includes("500")) return "650";
+  if (text.includes("300")) return "350";
+  return "0";
+}
+
+function requireIntakeFields(formData: FormData, fields: string[]) {
+  const missing = fields.filter((field) => !requiredString(formData, field));
+  if (missing.length) {
+    throw new Error(`Missing required intake fields: ${missing.join(", ")}`);
+  }
+}
+
+function revalidateIntakeRoutes(leadId?: string) {
+  ["/", "/leads", "/follow-ups", "/money-today", "/intake/inbox"].forEach((path) => revalidatePath(path));
+  if (leadId) revalidatePath(`/leads/${leadId}`);
+}
+
+export async function createIntakeLeadAction(formData: FormData) {
+  requireIntakeFields(formData, ["name", "phone", "email", "businessName", "serviceInterestedIn"]);
+
+  const budgetRange = requiredString(formData, "budgetRange");
+  const urgency = requiredString(formData, "urgency");
+  const source = requiredString(formData, "source") || "Website intake";
+  const notes = [
+    "Website intake request",
+    `Budget range: ${budgetRange || "Not provided"}`,
+    `Urgency: ${urgency || "Not provided"}`,
+    requiredString(formData, "notes") ? `Prospect notes: ${requiredString(formData, "notes")}` : ""
+  ].filter(Boolean).join("\n");
+
+  const lead = await prisma.lead.create({
+    data: {
+      name: requiredString(formData, "name"),
+      phone: requiredString(formData, "phone"),
+      email: requiredString(formData, "email"),
+      businessName: requiredString(formData, "businessName"),
+      businessType: requiredString(formData, "businessType") || "Not specified",
+      source,
+      serviceInterestedIn: requiredString(formData, "serviceInterestedIn"),
+      status: LeadStatus.NEW_LEAD,
+      dealValue: "0",
+      estimatedDealValue: budgetEstimate(budgetRange),
+      notes,
+      nextFollowUpAt: new Date(),
+      nextFollowUpDate: new Date(),
+      activities: {
+        create: {
+          type: FollowUpActivityType.WHATSAPP,
+          title: "New website intake lead",
+          note: `Send first response for ${requiredString(formData, "serviceInterestedIn")}. Urgency: ${urgency || "Not provided"}. Budget: ${budgetRange || "Not provided"}.`,
+          dueAt: new Date()
+        }
+      }
+    }
+  });
+
+  revalidateIntakeRoutes(lead.id);
+  redirect("/intake/thank-you");
+}
+
+export async function createShopfrontIntakeLeadAction(formData: FormData) {
+  requireIntakeFields(formData, ["name", "phone", "email", "businessName"]);
+
+  const budgetRange = requiredString(formData, "budgetRange");
+  const urgency = requiredString(formData, "urgency");
+  const shopfrontImageUrl = requiredString(formData, "shopfrontImageUrl");
+  const logoUrl = requiredString(formData, "logoUrl");
+  const preferredStyle = requiredString(formData, "preferredStyle");
+  const deadline = requiredString(formData, "deadline");
+  const source = requiredString(formData, "source") || "Shopfront mockup form";
+  const serviceInterestedIn = requiredString(formData, "serviceInterestedIn") || "Shopfront branding mockup";
+  const notes = [
+    "Shopfront mockup request",
+    `Preferred style: ${preferredStyle || "Not provided"}`,
+    `Deadline: ${deadline || "Not provided"}`,
+    `Budget range: ${budgetRange || "Not provided"}`,
+    `Urgency: ${urgency || "Not provided"}`,
+    shopfrontImageUrl ? `Shopfront image URL: ${shopfrontImageUrl}` : "Shopfront image URL: Not provided",
+    logoUrl ? `Logo URL: ${logoUrl}` : "Logo URL: Not provided",
+    requiredString(formData, "notes") ? `Prospect notes: ${requiredString(formData, "notes")}` : ""
+  ].filter(Boolean).join("\n");
+
+  const lead = await prisma.lead.create({
+    data: {
+      name: requiredString(formData, "name"),
+      phone: requiredString(formData, "phone"),
+      email: requiredString(formData, "email"),
+      businessName: requiredString(formData, "businessName"),
+      businessType: requiredString(formData, "businessType") || "Retail / shopfront",
+      source,
+      serviceInterestedIn,
+      status: LeadStatus.NEW_LEAD,
+      dealValue: "0",
+      estimatedDealValue: budgetEstimate(budgetRange),
+      notes,
+      nextFollowUpAt: new Date(),
+      nextFollowUpDate: new Date(),
+      activities: {
+        create: {
+          type: FollowUpActivityType.WHATSAPP,
+          title: "New shopfront mockup request",
+          note: `Service: ${serviceInterestedIn}. Urgency: ${urgency || "Not provided"}. Shopfront: ${shopfrontImageUrl || "Not provided"}. Logo: ${logoUrl || "Not provided"}.`,
+          dueAt: new Date()
+        }
+      }
+    }
+  });
+
+  revalidateIntakeRoutes(lead.id);
+  redirect("/intake/thank-you");
+}
 export async function updateQuoteStatusAction(quoteId: string, statusValue: string) {
   console.log("[quote-action] updateQuoteStatusAction called", { quoteId, statusValue });
 
@@ -321,3 +436,4 @@ export async function scheduleFollowUpTomorrowAction(quoteId: string) {
     };
   }
 }
+

@@ -4,6 +4,7 @@
   CalendarClock,
   CircleDollarSign,
   FileText,
+  Inbox,
   LayoutDashboard,
   Mail,
   MessageSquareText,
@@ -20,6 +21,7 @@ const nav = [
   ["Quotes", "/quotes", ReceiptText],
   ["AI Strategy", "/#strategy", Bot],
   ["Leads", "/leads", UsersRound],
+  ["Intake Inbox", "/intake/inbox", Inbox],
   ["Pipeline", "/#pipeline", BarChart3],
   ["Content", "/#content", Sparkles],
   ["Campaigns", "/#campaigns", Mail],
@@ -75,6 +77,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
+
 
 
 
