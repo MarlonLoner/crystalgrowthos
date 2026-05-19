@@ -1,4 +1,5 @@
 ﻿import { Lead, Quote, followUpActivities as mockActivities, leads as mockLeads, quoteFinalTotal, quotes as mockQuotes } from "@/lib/mock-data";
+import { formatCurrency } from "@/lib/formatters";
 import { generateWhatsAppScript, ScriptType } from "@/lib/scripts";
 
 export type Priority = "High" | "Medium" | "Low";
@@ -210,13 +211,13 @@ export function getAiRevenueBrief(sourceLeads: Lead[] = mockLeads, sourceQuotes:
   const riskCount = actions.filter((item) => item.reason.includes("Quote") || item.reason.includes("overdue")).length;
 
   return {
-    biggestOpportunity: biggest ? `${biggest.lead.businessName} at ${biggest.quoteValue || biggest.lead.estimatedDealValue}` : "No open opportunity",
+    biggestOpportunity: biggest ? `${biggest.lead.businessName} at ${formatCurrency(biggest.quoteValue || biggest.lead.estimatedDealValue)}` : "No open opportunity",
     totalChaseValue,
     highestPriority: biggest?.lead.businessName ?? "None",
     biggestRisk: `${riskCount} revenue actions are aging without a clear response.`,
     bestNextAction: biggest?.suggestedAction.title ?? "Review the lead list",
     summary: biggest
-      ? `Today's best move: follow up with ${actions.length} actions worth ${totalChaseValue.toLocaleString()}. Your hottest opportunity is ${biggest.lead.businessName} for ${biggest.lead.serviceInterestedIn}. Biggest risk: ${riskCount} quote or overdue actions need a response.`
+      ? `Today's best move: follow up with ${actions.length} actions worth ${formatCurrency(totalChaseValue)}. Your hottest opportunity is ${biggest.lead.businessName} for ${biggest.lead.serviceInterestedIn}. Biggest risk: ${riskCount} quote or overdue actions need a response.`
       : "Today's best move: keep the pipeline warm and capture new leads."
   };
 }
@@ -236,6 +237,7 @@ function topEntry(values: Record<string, number>) {
   const [name = "None", count = 0] = Object.entries(values).sort((a, b) => b[1] - a[1])[0] ?? [];
   return { name, count };
 }
+
 
 
 

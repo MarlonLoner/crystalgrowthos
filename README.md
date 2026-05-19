@@ -178,6 +178,10 @@ Visit `/quotes` to test the quote list. Use `/quotes/new` to open the create quo
 
 The quote model supports client/lead, business name, quote number, service category, line items, quantity, unit price, totals, discount, final total, status, notes, terms, created date, and expiry date.
 
+## Currency
+
+Crystal Growth OS displays monetary values in USD by default.
+
 ## Database
 
 The Prisma schema uses PostgreSQL with `DATABASE_URL`. Production deployment should use a hosted PostgreSQL database such as Neon or Supabase.
@@ -293,6 +297,7 @@ npm run build
 ```
 
 This SWC issue is environment-specific and should not require rewriting the app.
+
 
 
 

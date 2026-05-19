@@ -1,16 +1,13 @@
-import { clsx, type ClassValue } from "clsx";
+﻿import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { formatCurrency } from "@/lib/formatters";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function currency(value: number) {
-  return new Intl.NumberFormat("en-ZA", {
-    style: "currency",
-    currency: "ZAR",
-    maximumFractionDigits: 0
-  }).format(value);
+export function currency(value: number | string | null | undefined) {
+  return formatCurrency(value);
 }
 
 export function formatDate(value: string | Date | null | undefined) {
