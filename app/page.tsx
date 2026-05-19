@@ -1,4 +1,4 @@
-import { DashboardShell } from "@/components/dashboard-shell";
+﻿import { DashboardShell } from "@/components/dashboard-shell";
 import { DashboardOverview } from "@/components/dashboard-overview";
 import { LeadDatabase } from "@/components/lead-database";
 import { SalesPipeline } from "@/components/sales-pipeline";
@@ -7,9 +7,14 @@ import { EmailCampaignEngine } from "@/components/email-campaign-engine";
 import { AutomationCenter } from "@/components/automation-center";
 import { Reports } from "@/components/reports";
 import { StrategyAssistant } from "@/components/strategy-assistant";
-import { leads } from "@/lib/mock-data";
+import { getRevenueSourceData } from "@/lib/db-data";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const data = await getRevenueSourceData();
+  const leads = data.leads;
+
   return (
     <DashboardShell>
       <section id="dashboard" className="space-y-6">
@@ -27,7 +32,7 @@ export default function Home() {
             campaign drafts, automations, and monthly growth decisions.
           </p>
         </div>
-        <DashboardOverview leads={leads} />
+        <DashboardOverview leads={leads} quotes={data.quotes} activities={data.activities} />
       </section>
 
       <StrategyAssistant />
@@ -40,3 +45,4 @@ export default function Home() {
     </DashboardShell>
   );
 }
+

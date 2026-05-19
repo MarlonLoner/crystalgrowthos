@@ -1,5 +1,6 @@
 ﻿import Link from "next/link";
-import { getRevenueMetrics } from "@/lib/revenue-intelligence";
+import { getRevenueMetrics, RevenueActivity } from "@/lib/revenue-intelligence";
+import { Lead, Quote } from "@/lib/mock-data";
 import { currency } from "@/lib/utils";
 import { Panel, SectionHeading } from "@/components/ui";
 
@@ -7,8 +8,8 @@ function percent(value: number) {
   return `${Math.round(value * 100)}%`;
 }
 
-export function RevenueReport() {
-  const metrics = getRevenueMetrics();
+export function RevenueReport({ leads, quotes, activities }: { leads: Lead[]; quotes: Quote[]; activities: RevenueActivity[] }) {
+  const metrics = getRevenueMetrics(leads, quotes, activities);
   const cards = [
     ["Total leads", metrics.totalLeads.toString()],
     ["New leads this month", metrics.newLeadsThisMonth.toString()],
@@ -77,3 +78,5 @@ export function RevenueReport() {
     </div>
   );
 }
+
+

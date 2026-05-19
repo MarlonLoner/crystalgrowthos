@@ -20,7 +20,13 @@ function percent(value: number) {
   return `${Math.round(value * 100)}%`;
 }
 
-export function MoneyToday({ leads, quotes, activities }: { leads: Lead[]; quotes: Quote[]; activities: RevenueActivity[] }) {
+type MoneyTodayProps = {
+  leads?: Lead[];
+  quotes?: Quote[];
+  activities?: RevenueActivity[];
+};
+
+export function MoneyToday({ leads = [], quotes = [], activities = [] }: MoneyTodayProps) {
   const [done, setDone] = useState<string[]>([]);
   const items = useMemo(() => getMoneyActionItems(leads, quotes).filter((item) => !done.includes(item.id)), [leads, quotes, done]);
   const metrics = getRevenueMetrics(leads, quotes, activities);
@@ -123,6 +129,7 @@ export function MoneyToday({ leads, quotes, activities }: { leads: Lead[]; quote
     </div>
   );
 }
+
 
 
 

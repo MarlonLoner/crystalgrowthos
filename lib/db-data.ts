@@ -207,6 +207,15 @@ export async function getRevenueSourceData() {
 
 
 
+export async function getMoneyTodayPageData() {
+  const data = await getRevenueSourceData();
+  return {
+    source: "database" as const,
+    leads: data.leads,
+    quotes: data.quotes,
+    activities: data.activities
+  };
+}
 export type IntakeInboxItem = Lead & {
   urgency: string;
   suggestedNextAction: string;
@@ -299,5 +308,6 @@ export async function getIntakeInboxData() {
     };
   }
 }
+
 
 

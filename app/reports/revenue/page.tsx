@@ -1,10 +1,15 @@
 ﻿import { DashboardShell } from "@/components/dashboard-shell";
 import { RevenueReport } from "@/components/revenue-report";
+import { getRevenueSourceData } from "@/lib/db-data";
 
-export default function RevenueReportPage() {
+export const dynamic = "force-dynamic";
+
+export default async function RevenueReportPage() {
+  const data = await getRevenueSourceData();
+
   return (
     <DashboardShell>
-      <RevenueReport />
+      <RevenueReport leads={data.leads} quotes={data.quotes} activities={data.activities} />
     </DashboardShell>
   );
 }

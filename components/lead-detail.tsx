@@ -1,11 +1,13 @@
 ﻿import { CheckCircle2, Edit, FilePlus2 } from "lucide-react";
 import Link from "next/link";
-import { Lead, followUpActivities, quotes, quoteFinalTotal } from "@/lib/mock-data";
-import { generateWhatsAppScript } from "@/lib/scripts";
-import { currency, formatDate } from "@/lib/utils";
+import { ActionButton } from "@/components/action-button";
 import { WhatsAppAction } from "@/components/whatsapp-action";
 import { WhatsAppScriptGenerator } from "@/components/whatsapp-script-generator";
 import { buttonClass, Panel, SectionHeading } from "@/components/ui";
+import { ActivityView } from "@/lib/db-data";
+import { Lead, Quote, quoteFinalTotal } from "@/lib/mock-data";
+import { generateWhatsAppScript } from "@/lib/scripts";
+import { currency, formatDate } from "@/lib/utils";
 
 function suggestedNextAction(lead: Lead) {
   if (!lead.lastContactedAt) return "Send a first WhatsApp response and request logo, shopfront photo, and approximate sizes.";
@@ -15,9 +17,21 @@ function suggestedNextAction(lead: Lead) {
   return "Confirm timeline, decision maker, and what must happen before production can start.";
 }
 
-export function LeadDetail({ lead }: { lead: Lead }) {
-  const relatedQuotes = quotes.filter((quote) => quote.leadId === lead.id);
-  const activities = followUpActivities.filter((activity) => activity.leadId === lead.id);
+function activityStatus(activity: ActivityView) {
+  if (activity.completedAt) return { label: "Completed", className: "bg-emerald-400/15 text-emerald-200 border-emerald-300/30" };
+  if (activity.dueAt && new Date(activity.dueAt) < new Date()) return { label: "Overdue", className: "bg-red-500/15 text-red-200 border-red-300/30" };
+  return { label: "Pending", className: "bg-aurum/10 text-aurum border-aurum/30" };
+}
+
+export function LeadDetail({
+  lead,
+  relatedQuotes,
+  activities
+}: {
+  lead: Lead;
+  relatedQuotes: Quote[];
+  activities: ActivityView[];
+}) {
   const message = generateWhatsAppScript(lead.status === "Lost" ? "dead-lead-revival" : lead.status === "Won" ? "review-request" : "quote-follow-up", lead);
 
   return (
@@ -32,7 +46,7 @@ export function LeadDetail({ lead }: { lead: Lead }) {
           <div className="flex flex-wrap gap-2">
             <Link className={buttonClass} href={`/quotes/new?lead=${lead.id}`}><FilePlus2 size={18} /> Create Quote</Link>
             <Link className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2.5 text-sm font-bold text-white" href={`/leads/${lead.id}/edit`}><Edit size={18} /> Edit Lead</Link>
-            <button className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2.5 text-sm font-bold text-white"><CheckCircle2 size={18} /> Mark Contacted</button>
+            <ActionButton action="mark-contacted" leadId={lead.id} className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2.5 text-sm font-bold text-white"><CheckCircle2 size={18} /> Mark Contacted</ActionButton>
           </div>
         </div>
       </Panel>
@@ -81,15 +95,22 @@ export function LeadDetail({ lead }: { lead: Lead }) {
           </Panel>
 
           <Panel>
-            <SectionHeading eyebrow="Activity" title="Follow-up activities" description="Recent and due actions connected to this opportunity." />
+            <SectionHeading eyebrow="Activity Timeline" title="Follow-up activities" description="Real activity records for this lead, including pending, completed, and overdue work." />
             <div className="space-y-3">
-              {activities.length ? activities.map((activity) => (
-                <div key={activity.id} className="rounded-lg border border-white/10 bg-obsidian/60 p-4">
-                  <div className="flex justify-between gap-3"><p className="font-black text-white">{activity.title}</p><span className="text-xs font-bold text-aurum">{activity.type}</span></div>
-                  <p className="mt-2 text-sm text-mercury">{activity.note}</p>
-                  <p className="mt-2 text-xs text-slate-500">Due {formatDate(activity.dueAt)} - Completed {formatDate(activity.completedAt)}</p>
-                </div>
-              )) : <p className="text-sm text-mercury">No activity logged yet.</p>}
+              {activities.length ? activities.map((activity) => {
+                const status = activityStatus(activity);
+                return (
+                  <div key={activity.id} className="rounded-lg border border-white/10 bg-obsidian/60 p-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div><p className="font-black text-white">{activity.title}</p><p className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-aurum">{activity.type}</p></div>
+                      <span className={`rounded-lg border px-2.5 py-1 text-xs font-black ${status.className}`}>{status.label}</span>
+                    </div>
+                    <p className="mt-3 text-sm text-mercury">{activity.note}</p>
+                    <p className="mt-2 text-xs text-slate-500">Created {formatDate(activity.createdAt)} - Due {formatDate(activity.dueAt)} - Completed {formatDate(activity.completedAt)}</p>
+                    {!activity.completedAt ? <ActionButton action="complete-follow-up" leadId={lead.id} activityId={activity.id} className="mt-3 rounded-lg bg-emerald-400 px-3 py-2 text-xs font-black text-obsidian">Mark Done</ActionButton> : null}
+                  </div>
+                );
+              }) : <p className="text-sm text-mercury">No activity logged yet.</p>}
             </div>
           </Panel>
         </div>
@@ -110,5 +131,3 @@ export function LeadDetail({ lead }: { lead: Lead }) {
     </div>
   );
 }
-
-

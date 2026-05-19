@@ -1,14 +1,14 @@
 ﻿import { CalendarCheck2, Flame, Send, Target, Trophy, UsersRound, WalletCards } from "lucide-react";
-import { Lead } from "@/lib/mock-data";
-import { getRevenueMetrics } from "@/lib/revenue-intelligence";
+import { Lead, Quote } from "@/lib/mock-data";
+import { getRevenueMetrics, RevenueActivity } from "@/lib/revenue-intelligence";
 import { currency } from "@/lib/utils";
 
 function percent(value: number) {
   return `${Math.round(value * 100)}%`;
 }
 
-export function DashboardOverview({ leads }: { leads: Lead[] }) {
-  const metrics = getRevenueMetrics();
+export function DashboardOverview({ leads, quotes, activities }: { leads: Lead[]; quotes: Quote[]; activities: RevenueActivity[] }) {
+  const metrics = getRevenueMetrics(leads, quotes, activities);
   const needingContact = leads.filter((lead) => !lead.lastContactedAt || new Date(lead.nextFollowUpDate) <= new Date("2026-05-18")).length;
 
   const cards = [
@@ -42,3 +42,6 @@ export function DashboardOverview({ leads }: { leads: Lead[] }) {
     </div>
   );
 }
+
+
+

@@ -1,10 +1,10 @@
-import { FileText, Plus } from "lucide-react";
+﻿import { FileText, Plus } from "lucide-react";
 import Link from "next/link";
-import { quotes, quoteFinalTotal } from "@/lib/mock-data";
+import { Quote, quoteFinalTotal } from "@/lib/mock-data";
 import { currency, formatDate } from "@/lib/utils";
 import { buttonClass, Panel, SectionHeading } from "@/components/ui";
 
-export function QuoteList() {
+export function QuoteList({ quotes }: { quotes: Quote[] }) {
   return (
     <Panel>
       <SectionHeading
@@ -44,3 +44,4 @@ export function QuoteList() {
     </Panel>
   );
 }
+

@@ -1,18 +1,19 @@
 ﻿import { notFound } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { LeadForm } from "@/components/lead-form";
-import { leads } from "@/lib/mock-data";
+import { getLeadDetailForPage } from "@/lib/db-data";
+
+export const dynamic = "force-dynamic";
 
 export default async function EditLeadPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const lead = leads.find((item) => item.id === id);
+  const data = await getLeadDetailForPage(id);
 
-  if (!lead) notFound();
+  if (!data) notFound();
 
   return (
     <DashboardShell>
-      <LeadForm mode="edit" lead={lead} />
+      <LeadForm mode="edit" lead={data.lead} />
     </DashboardShell>
   );
 }
-
