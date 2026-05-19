@@ -1,20 +1,33 @@
 ﻿import { notFound } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { QuotePreview } from "@/components/quote-preview";
-import { leads, quotes } from "@/lib/mock-data";
+import { getQuoteDetailForPage } from "@/lib/db-data";
+
+export const dynamic = "force-dynamic";
 
 export default async function QuoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const quote = quotes.find((item) => item.id === id);
+  const data = await getQuoteDetailForPage(id);
 
-  if (!quote) notFound();
+  if (!data) notFound();
 
-  const lead = leads.find((item) => item.id === quote.leadId);
+  const isDatabaseQuote = data.source === "database";
 
   return (
     <DashboardShell>
-      <QuotePreview quote={quote} lead={lead} />
+      <div className="mb-4 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-bold text-slate-300">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <span className={isDatabaseQuote ? "text-emerald-300" : "text-amber-300"}>
+            {isDatabaseQuote ? "Database quote loaded" : "Using demo fallback data. Changes will not persist."}
+          </span>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-slate-400">
+            <span>Database status: {data.quote.status}</span>
+            <span>Quote ID: {data.quote.id}</span>
+            <span>Quote Number: {data.quote.quoteNumber}</span>
+          </div>
+        </div>
+      </div>
+      <QuotePreview quote={data.quote} lead={data.lead} />
     </DashboardShell>
   );
 }
-

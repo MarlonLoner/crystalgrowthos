@@ -1,0 +1,199 @@
+﻿import "server-only";
+import { Lead as PrismaLead, Quote as PrismaQuote, QuoteLineItem as PrismaQuoteLineItem, FollowUpActivity as PrismaActivity } from "@prisma/client";
+import { followUpActivities, Lead, leads, Quote, quotes } from "@/lib/mock-data";
+import { prisma } from "@/lib/prisma";
+
+const statusToLabel = {
+  NEW_LEAD: "New Lead",
+  CONTACTED: "Contacted",
+  QUOTE_REQUESTED: "Quote Requested",
+  QUOTE_SENT: "Quote Sent",
+  FOLLOW_UP_NEEDED: "Follow-Up Needed",
+  NEGOTIATING: "Negotiating",
+  WON: "Won",
+  LOST: "Lost"
+} as const;
+
+const quoteStatusToLabel = {
+  DRAFT: "Draft",
+  SENT: "Sent",
+  VIEWED: "Viewed",
+  FOLLOW_UP_DUE: "Follow-Up Due",
+  ACCEPTED: "Accepted",
+  REJECTED: "Rejected",
+  PAID: "Paid"
+} as const;
+
+export type ActivityView = {
+  id: string;
+  leadId: string;
+  type: string;
+  title: string;
+  note: string;
+  dueAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+};
+
+export type QuoteDetailSource = "database" | "fallback";
+
+function quoteNumberFromDemoId(quoteId: string) {
+  const match = quoteId.match(/^quote-(\d+)$/);
+  if (!match) return null;
+  return `CBS-2026-${match[1].padStart(3, "0")}`;
+}
+
+function iso(value: Date | null | undefined) {
+  return value ? value.toISOString().slice(0, 10) : "";
+}
+
+function mapLead(lead: PrismaLead): Lead {
+  return {
+    id: lead.id,
+    name: lead.name,
+    phone: lead.phone,
+    email: lead.email,
+    businessName: lead.businessName,
+    businessType: lead.businessType,
+    source: lead.source,
+    serviceInterestedIn: lead.serviceInterestedIn,
+    status: statusToLabel[lead.status],
+    dealValue: Number(lead.dealValue),
+    estimatedDealValue: Number(lead.estimatedDealValue ?? lead.dealValue),
+    birthday: iso(lead.birthday),
+    notes: lead.notes ?? "",
+    createdAt: iso(lead.createdAt),
+    lastContactedAt: lead.lastContactedAt ? iso(lead.lastContactedAt) : null,
+    nextFollowUpDate: iso(lead.nextFollowUpAt ?? lead.nextFollowUpDate),
+    isCustomer: lead.status === "WON"
+  };
+}
+
+function mapQuote(quote: PrismaQuote & { lineItems: PrismaQuoteLineItem[] }): Quote {
+  return {
+    id: quote.id,
+    leadId: quote.leadId,
+    clientName: quote.clientName,
+    businessName: quote.businessName,
+    quoteNumber: quote.quoteNumber,
+    serviceCategory: quote.serviceCategory,
+    lineItems: quote.lineItems.map((item) => ({
+      id: item.id,
+      description: item.description,
+      quantity: item.quantity,
+      unitPrice: Number(item.unitPrice)
+    })),
+    discount: Number(quote.discount),
+    status: quoteStatusToLabel[quote.status],
+    notes: quote.notes ?? "",
+    terms: quote.terms ?? "",
+    createdAt: iso(quote.createdAt),
+    expiryDate: iso(quote.expiryDate)
+  };
+}
+
+function mapActivity(activity: PrismaActivity): ActivityView {
+  return {
+    id: activity.id,
+    leadId: activity.leadId,
+    type: activity.type,
+    title: activity.title,
+    note: activity.note ?? "",
+    dueAt: activity.dueAt ? iso(activity.dueAt) : null,
+    completedAt: activity.completedAt ? iso(activity.completedAt) : null,
+    createdAt: iso(activity.createdAt)
+  };
+}
+
+export async function getLeadsForPage() {
+  try {
+    const dbLeads = await prisma.lead.findMany({ orderBy: { createdAt: "desc" } });
+    return dbLeads.map(mapLead);
+  } catch {
+    return leads;
+  }
+}
+
+export async function getLeadDetailForPage(id: string) {
+  try {
+    const dbLead = await prisma.lead.findUnique({
+      where: { id },
+      include: {
+        quotes: { include: { lineItems: true }, orderBy: { createdAt: "desc" } },
+        activities: { orderBy: { createdAt: "desc" } }
+      }
+    });
+
+    if (dbLead) {
+      return {
+        lead: mapLead(dbLead),
+        quotes: dbLead.quotes.map(mapQuote),
+        activities: dbLead.activities.map(mapActivity)
+      };
+    }
+  } catch {}
+
+  const lead = leads.find((item) => item.id === id);
+  if (!lead) return null;
+  return {
+    lead,
+    quotes: quotes.filter((quote) => quote.leadId === id),
+    activities: followUpActivities.filter((activity) => activity.leadId === id)
+  };
+}
+
+export async function getQuoteDetailForPage(id: string) {
+  try {
+    const quoteNumber = quoteNumberFromDemoId(id) ?? (id.startsWith("CBS-") ? id : null);
+    const dbQuote = await prisma.quote.findFirst({
+      where: quoteNumber ? { quoteNumber } : { id },
+      include: { lineItems: true, lead: true }
+    });
+
+    if (dbQuote) {
+      return {
+        quote: mapQuote(dbQuote),
+        lead: mapLead(dbQuote.lead),
+        source: "database" as QuoteDetailSource
+      };
+    }
+  } catch (error) {
+    console.error("[quote-detail] database quote lookup failed", { id, error });
+  }
+
+  console.log("Using mock fallback for quote", { id });
+  const quote = quotes.find((item) => item.id === id || item.quoteNumber === id);
+  if (!quote) return null;
+  const lead = leads.find((item) => item.id === quote.leadId);
+  return { quote, lead, source: "fallback" as QuoteDetailSource };
+}
+export async function getQuotesForPage() {
+  try {
+    const dbQuotes = await prisma.quote.findMany({ include: { lineItems: true }, orderBy: { createdAt: "desc" } });
+    return dbQuotes.map(mapQuote);
+  } catch {
+    return quotes;
+  }
+}
+
+export async function getRevenueSourceData() {
+  try {
+    const [dbLeads, dbQuotes, dbActivities] = await Promise.all([
+      prisma.lead.findMany({ orderBy: { createdAt: "desc" } }),
+      prisma.quote.findMany({ include: { lineItems: true }, orderBy: { createdAt: "desc" } }),
+      prisma.followUpActivity.findMany({ orderBy: { createdAt: "desc" } })
+    ]);
+
+    return {
+      leads: dbLeads.map(mapLead),
+      quotes: dbQuotes.map(mapQuote),
+      activities: dbActivities.map(mapActivity)
+    };
+  } catch {
+    return { leads, quotes, activities: followUpActivities };
+  }
+}
+
+
+
+
