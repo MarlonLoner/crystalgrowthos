@@ -80,7 +80,19 @@ export function getSuggestedAction(lead: Lead, quote?: Quote): SuggestedAction {
   let title = "Send quote follow-up";
   let reason = "There is money waiting for a clear next step.";
 
-  if (!lead.lastContactedAt) {
+  if (lead.source.toLowerCase().includes("shopfront") && /Logo: missing/i.test(lead.notes)) {
+    scriptType = "request-missing-logo";
+    title = "Request missing logo";
+    reason = "The mockup request needs a logo before design can move properly.";
+  } else if (lead.source.toLowerCase().includes("shopfront") && /Shopfront: missing/i.test(lead.notes)) {
+    scriptType = "request-shopfront-photo";
+    title = "Request shopfront image";
+    reason = "The mockup request needs a clear shopfront image.";
+  } else if (lead.source.toLowerCase().includes("shopfront") && /Shopfront: yes/i.test(lead.notes) && /Logo: yes/i.test(lead.notes)) {
+    scriptType = "confirm-assets-received";
+    title = "Prepare mockup";
+    reason = "Shopfront and logo assets are available for mockup preparation.";
+  } else if (!lead.lastContactedAt) {
     scriptType = "first-response";
     title = "Send first response";
     reason = "This lead has not been contacted yet.";
@@ -237,6 +249,7 @@ function topEntry(values: Record<string, number>) {
   const [name = "None", count = 0] = Object.entries(values).sort((a, b) => b[1] - a[1])[0] ?? [];
   return { name, count };
 }
+
 
 
 

@@ -80,7 +80,7 @@ export default async function IntakeInboxPage() {
                 </tr>
               ))}
               {data.items.length === 0 ? (
-                <tr><td colSpan={8} className="py-8 text-center text-mercury">No intake leads yet. Share the public intake form to start capturing opportunities.</td></tr>
+                <tr><td colSpan={9} className="py-8 text-center text-mercury">No intake leads yet. Share the public intake form to start capturing opportunities.</td></tr>
               ) : null}
             </tbody>
           </table>
@@ -89,5 +89,6 @@ export default async function IntakeInboxPage() {
     </DashboardShell>
   );
 }
+
 
 

@@ -4,7 +4,7 @@ import { ActionButton } from "@/components/action-button";
 import { WhatsAppAction } from "@/components/whatsapp-action";
 import { WhatsAppScriptGenerator } from "@/components/whatsapp-script-generator";
 import { buttonClass, Panel, SectionHeading } from "@/components/ui";
-import { ActivityView } from "@/lib/db-data";
+import { ActivityView, LeadAssetView } from "@/lib/db-data";
 import { Lead, Quote, quoteFinalTotal } from "@/lib/mock-data";
 import { generateWhatsAppScript } from "@/lib/scripts";
 import { currency, formatDate } from "@/lib/utils";
@@ -26,11 +26,13 @@ function activityStatus(activity: ActivityView) {
 export function LeadDetail({
   lead,
   relatedQuotes,
-  activities
+  activities,
+  assets = []
 }: {
   lead: Lead;
   relatedQuotes: Quote[];
   activities: ActivityView[];
+  assets?: LeadAssetView[];
 }) {
   const message = generateWhatsAppScript(lead.status === "Lost" ? "dead-lead-revival" : lead.status === "Won" ? "review-request" : "quote-follow-up", lead);
 
@@ -78,6 +80,26 @@ export function LeadDetail({
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-mercury">Notes</p>
               <p className="mt-2 text-sm leading-6 text-slate-200">{lead.notes}</p>
             </div>
+          </Panel>
+
+          <Panel>
+            <SectionHeading eyebrow="Lead Assets" title="Asset gallery" description="Uploaded shopfront, logo, and reference files for mockup or quote preparation." />
+            {assets.length ? (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {assets.map((asset) => (
+                  <div key={asset.id} className="overflow-hidden rounded-lg border border-white/10 bg-obsidian/60">
+                    {asset.contentType.startsWith("image/") ? <img src={asset.url} alt={asset.filename} className="h-44 w-full object-cover" /> : null}
+                    <div className="space-y-2 p-4">
+                      <span className="inline-flex rounded-lg bg-aurum/10 px-2.5 py-1 text-xs font-black text-aurum">{asset.type.replaceAll("_", " ")}</span>
+                      <p className="break-words font-black text-white">{asset.filename}</p>
+                      <p className="text-xs text-mercury">{asset.contentType} - {asset.size ? `${Math.round(asset.size / 1024)} KB` : "URL reference"}</p>
+                      {asset.notes ? <p className="text-xs leading-5 text-slate-400">{asset.notes}</p> : null}
+                      <a href={asset.url} target="_blank" rel="noreferrer" className="inline-flex rounded-lg bg-white/10 px-3 py-2 text-xs font-black text-white hover:bg-white/15">Open asset</a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="text-sm text-mercury">No assets uploaded yet.</p>}
           </Panel>
 
           <Panel>
@@ -131,3 +153,5 @@ export function LeadDetail({
     </div>
   );
 }
+
+

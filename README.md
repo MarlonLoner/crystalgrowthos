@@ -178,6 +178,38 @@ Visit `/quotes` to test the quote list. Use `/quotes/new` to open the create quo
 
 The quote model supports client/lead, business name, quote number, service category, line items, quantity, unit price, totals, discount, final total, status, notes, terms, created date, and expiry date.
 
+## Vercel Blob Asset Upload + Mockup Workflow
+
+Shopfront mockup intake now supports direct image uploads using Vercel Blob. The app stores uploaded shopfront, logo, and reference files as `LeadAsset` records connected to the created lead.
+
+Required environment variable:
+
+```bash
+BLOB_READ_WRITE_TOKEN="your-vercel-blob-read-write-token"
+```
+
+Routes and workflow:
+
+```text
+/intake/shopfront
+/leads/[id]
+/intake/inbox
+/api/debug/assets/[leadId]
+```
+
+To test locally:
+
+1. Add `BLOB_READ_WRITE_TOKEN` to `.env`.
+2. Run `npm run dev`.
+3. Open `/intake/shopfront`.
+4. Submit a unique email with shopfront and logo files.
+5. Confirm redirect to `/intake/thank-you`.
+6. Open `/intake/inbox` and confirm asset count plus logo/shopfront status.
+7. Open `/leads/[id]` and confirm the Asset Gallery shows uploaded files.
+8. Open `/api/debug/assets/[leadId]` and confirm `assets` and related activities exist.
+9. Open `/money-today` and confirm the shopfront mockup action appears.
+
+Upload validation is intentionally simple for Vercel: JPG, JPEG, PNG, WEBP, and SVG images only, with an 8MB limit per file. URL fallback fields remain available for shared Drive/WhatsApp links.
 ## Currency
 
 Crystal Growth OS displays monetary values in USD by default.
@@ -228,6 +260,7 @@ npm run build
 - `NEXTAUTH_SECRET`
 - `NEXTAUTH_URL`
 - `OPENAI_API_KEY` only when the OpenAI integration is connected; mock AI outputs work without it
+- `BLOB_READ_WRITE_TOKEN` for Vercel Blob shopfront/logo uploads
 
 7. Deploy on Vercel.
 
@@ -297,6 +330,7 @@ npm run build
 ```
 
 This SWC issue is environment-specific and should not require rewriting the app.
+
 
 
 

@@ -1,5 +1,5 @@
 ﻿import "server-only";
-import { Lead as PrismaLead, Quote as PrismaQuote, QuoteLineItem as PrismaQuoteLineItem, FollowUpActivity as PrismaActivity } from "@prisma/client";
+import { Lead as PrismaLead, Quote as PrismaQuote, QuoteLineItem as PrismaQuoteLineItem, FollowUpActivity as PrismaActivity, LeadAsset as PrismaLeadAsset } from "@prisma/client";
 import { followUpActivities, Lead, leads, Quote, quotes } from "@/lib/mock-data";
 import { prisma } from "@/lib/prisma";
 
@@ -36,6 +36,19 @@ export type ActivityView = {
 };
 
 export type QuoteDetailSource = "database" | "fallback";
+
+export type LeadAssetView = {
+  id: string;
+  leadId: string;
+  type: string;
+  url: string;
+  pathname: string;
+  filename: string;
+  contentType: string;
+  size: number;
+  notes: string;
+  createdAt: string;
+};
 
 function quoteNumberFromDemoId(quoteId: string) {
   const match = quoteId.match(/^quote-(\d+)$/);
@@ -92,6 +105,20 @@ function mapQuote(quote: PrismaQuote & { lineItems: PrismaQuoteLineItem[] }): Qu
   };
 }
 
+function mapAsset(asset: PrismaLeadAsset): LeadAssetView {
+  return {
+    id: asset.id,
+    leadId: asset.leadId,
+    type: asset.type,
+    url: asset.url,
+    pathname: asset.pathname,
+    filename: asset.filename,
+    contentType: asset.contentType,
+    size: asset.size,
+    notes: asset.notes ?? "",
+    createdAt: iso(asset.createdAt)
+  };
+}
 function mapActivity(activity: PrismaActivity): ActivityView {
   return {
     id: activity.id,
@@ -129,7 +156,8 @@ export async function getLeadDetailForPage(id: string) {
       where: { id },
       include: {
         quotes: { include: { lineItems: true }, orderBy: { createdAt: "desc" } },
-        activities: { orderBy: { createdAt: "desc" } }
+        activities: { orderBy: { createdAt: "desc" } },
+        assets: { orderBy: { createdAt: "desc" } }
       }
     });
 
@@ -137,7 +165,8 @@ export async function getLeadDetailForPage(id: string) {
       return {
         lead: mapLead(dbLead),
         quotes: dbLead.quotes.map(mapQuote),
-        activities: dbLead.activities.map(mapActivity)
+        activities: dbLead.activities.map(mapActivity),
+        assets: dbLead.assets.map(mapAsset)
       };
     }
   } catch {}
@@ -147,7 +176,8 @@ export async function getLeadDetailForPage(id: string) {
   return {
     lead,
     quotes: quotes.filter((quote) => quote.leadId === id),
-    activities: followUpActivities.filter((activity) => activity.leadId === id)
+    activities: followUpActivities.filter((activity) => activity.leadId === id),
+    assets: []
   };
 }
 
@@ -220,6 +250,10 @@ export type IntakeInboxItem = Lead & {
   urgency: string;
   suggestedNextAction: string;
   isHighUrgency: boolean;
+  assetCount: number;
+  hasShopfrontImage: boolean;
+  hasLogo: boolean;
+  hasReferenceImage: boolean;
 };
 
 function parseNoteValue(notes: string, label: string) {
@@ -227,25 +261,36 @@ function parseNoteValue(notes: string, label: string) {
   return line ? line.slice(label.length + 1).trim() : "Not provided";
 }
 
-function intakeSuggestion(lead: Lead, urgency: string) {
+function intakeSuggestion(lead: Lead, urgency: string, assets: LeadAssetView[] = []) {
+  const hasShopfrontImage = assets.some((asset) => asset.type === "SHOPFRONT_IMAGE");
+  const hasLogo = assets.some((asset) => asset.type === "LOGO");
+
+  if (lead.source.toLowerCase().includes("shopfront") && !hasLogo) return "Request missing logo";
+  if (lead.source.toLowerCase().includes("shopfront") && !hasShopfrontImage) return "Request shopfront image";
+  if (lead.source.toLowerCase().includes("shopfront") && hasLogo && hasShopfrontImage) return "Prepare mockup";
+
   if (urgency.toLowerCase().includes("urgent") || urgency.toLowerCase().includes("today")) {
     return "Send WhatsApp now and ask for photos, measurements, and decision deadline.";
-  }
-
-  if (lead.source.toLowerCase().includes("shopfront")) {
-    return "Confirm mockup assets and ask when they want installation or production.";
   }
 
   return "Send first response, confirm brief details, and move the lead toward a quote.";
 }
 
-function toIntakeItem(lead: Lead): IntakeInboxItem {
+function toIntakeItem(lead: Lead, assets: LeadAssetView[] = []): IntakeInboxItem {
   const urgency = parseNoteValue(lead.notes, "Urgency");
+  const hasShopfrontImage = assets.some((asset) => asset.type === "SHOPFRONT_IMAGE");
+  const hasLogo = assets.some((asset) => asset.type === "LOGO");
+  const hasReferenceImage = assets.some((asset) => asset.type === "REFERENCE_IMAGE");
+
   return {
     ...lead,
     urgency,
-    suggestedNextAction: intakeSuggestion(lead, urgency),
-    isHighUrgency: /urgent|today|24|this week/i.test(urgency)
+    suggestedNextAction: intakeSuggestion(lead, urgency, assets),
+    isHighUrgency: /urgent|today|24|this week/i.test(urgency),
+    assetCount: assets.length,
+    hasShopfrontImage,
+    hasLogo,
+    hasReferenceImage
   };
 }
 
@@ -259,15 +304,16 @@ export async function getRecentIntakeLeads() {
         ]
       },
       orderBy: { createdAt: "desc" },
-      take: 12
+      take: 12,
+      include: { assets: true }
     });
 
-    return { source: "database" as const, leads: dbLeads.map(mapLead).map(toIntakeItem) };
+    return { source: "database" as const, leads: dbLeads.map((lead) => toIntakeItem(mapLead(lead), lead.assets.map(mapAsset))) };
   } catch (error) {
     console.error("[intake-inbox] database lookup failed", error);
     const fallback = leads
       .filter((lead) => /website|shopfront/i.test(lead.source))
-      .map(toIntakeItem);
+      .map((lead) => toIntakeItem(lead));
     return { source: "fallback" as const, leads: fallback };
   }
 }
@@ -283,10 +329,11 @@ export async function getIntakeInboxData() {
         ]
       },
       orderBy: [{ lastContactedAt: "asc" }, { createdAt: "desc" }],
-      take: 40
+      take: 40,
+      include: { assets: true }
     });
 
-    const items = dbLeads.map(mapLead).map(toIntakeItem);
+    const items = dbLeads.map((lead) => toIntakeItem(mapLead(lead), lead.assets.map(mapAsset)));
     return {
       source: "database" as const,
       items,
@@ -297,7 +344,7 @@ export async function getIntakeInboxData() {
     };
   } catch (error) {
     console.error("[intake-inbox] database lookup failed", error);
-    const items = leads.filter((lead) => /website|shopfront/i.test(lead.source) || !lead.lastContactedAt).map(toIntakeItem);
+    const items = leads.filter((lead) => /website|shopfront/i.test(lead.source) || !lead.lastContactedAt).map((lead) => toIntakeItem(lead));
     return {
       source: "fallback" as const,
       items,
@@ -308,6 +355,3 @@ export async function getIntakeInboxData() {
     };
   }
 }
-
-
-

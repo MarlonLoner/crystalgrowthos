@@ -181,6 +181,75 @@ function requireIntakeFields(formData: FormData, fields: string[]) {
   }
 }
 
+const allowedLeadAssetTypes = ["SHOPFRONT_IMAGE", "LOGO", "REFERENCE_IMAGE", "OTHER"] as const;
+
+type SafeLeadAssetType = (typeof allowedLeadAssetTypes)[number];
+
+function normalizeLeadAssetType(value: unknown): SafeLeadAssetType {
+  return allowedLeadAssetTypes.includes(value as SafeLeadAssetType) ? (value as SafeLeadAssetType) : "OTHER";
+}
+
+type IntakeAssetInput = {
+  type: SafeLeadAssetType | string;
+  url: string;
+  pathname?: string;
+  filename?: string;
+  contentType?: string;
+  size?: number;
+  notes?: string;
+};
+
+function parseUploadedAssets(formData: FormData) {
+  const assets: IntakeAssetInput[] = [];
+  const raw = requiredString(formData, "assetsJson");
+
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as IntakeAssetInput[];
+      if (Array.isArray(parsed)) assets.push(...parsed.filter((asset) => asset.url && asset.type));
+    } catch {
+      console.error("[intake-assets] Could not parse uploaded asset metadata");
+    }
+  }
+
+  const fallbackAssets: Array<{ key: string; type: SafeLeadAssetType; label: string }> = [
+    { key: "shopfrontImageUrl", type: "SHOPFRONT_IMAGE", label: "Shopfront image URL fallback" },
+    { key: "logoUrl", type: "LOGO", label: "Logo URL fallback" },
+    { key: "referenceImageUrl", type: "REFERENCE_IMAGE", label: "Reference image URL fallback" }
+  ];
+
+  fallbackAssets.forEach(({ key, type, label }) => {
+    const url = requiredString(formData, key);
+    if (!url || assets.some((asset) => asset.type === type)) return;
+    assets.push({
+      type,
+      url,
+      pathname: url,
+      filename: url.split("/").pop() || label,
+      contentType: "text/uri-list",
+      size: 0,
+      notes: label
+    });
+  });
+
+  return assets;
+}
+
+function assetCreateData(assets: IntakeAssetInput[]) {
+  return assets.map((asset) => ({
+    type: normalizeLeadAssetType(asset.type),
+    url: asset.url,
+    pathname: asset.pathname ?? asset.url,
+    filename: asset.filename ?? "uploaded-asset",
+    contentType: asset.contentType ?? "application/octet-stream",
+    size: Number(asset.size ?? 0),
+    notes: asset.notes ?? null
+  }));
+}
+
+function hasAsset(assets: IntakeAssetInput[], type: SafeLeadAssetType) {
+  return assets.some((asset) => asset.type === type && asset.url);
+}
 function revalidateIntakeRoutes(leadId?: string) {
   ["/", "/leads", "/follow-ups", "/money-today", "/intake/inbox", "/reports/revenue"].forEach((path) => revalidatePath(path));
   if (leadId) revalidatePath(`/leads/${leadId}`);
@@ -238,18 +307,29 @@ export async function createShopfrontIntakeLeadAction(formData: FormData) {
   const urgency = requiredString(formData, "urgency");
   const shopfrontImageUrl = requiredString(formData, "shopfrontImageUrl");
   const logoUrl = requiredString(formData, "logoUrl");
+  const referenceImageUrl = requiredString(formData, "referenceImageUrl");
   const preferredStyle = requiredString(formData, "preferredStyle");
   const deadline = requiredString(formData, "deadline");
   const source = requiredString(formData, "source") || "Shopfront mockup form";
   const serviceInterestedIn = requiredString(formData, "serviceInterestedIn") || "Shopfront branding mockup";
+  const assets = parseUploadedAssets(formData);
+  const createAssets = assetCreateData(assets);
+  const hasShopfront = hasAsset(assets, "SHOPFRONT_IMAGE");
+  const hasLogo = hasAsset(assets, "LOGO");
+  const hasReference = hasAsset(assets, "REFERENCE_IMAGE");
+  const now = new Date();
+  const next = tomorrow();
+  const assetSummary = `Assets attached: ${assets.length}. Shopfront: ${hasShopfront ? "yes" : "missing"}. Logo: ${hasLogo ? "yes" : "missing"}. Reference: ${hasReference ? "yes" : "missing"}.`;
   const notes = [
     "Shopfront mockup request",
     `Preferred style: ${preferredStyle || "Not provided"}`,
     `Deadline: ${deadline || "Not provided"}`,
     `Budget range: ${budgetRange || "Not provided"}`,
     `Urgency: ${urgency || "Not provided"}`,
+    assetSummary,
     shopfrontImageUrl ? `Shopfront image URL: ${shopfrontImageUrl}` : "Shopfront image URL: Not provided",
     logoUrl ? `Logo URL: ${logoUrl}` : "Logo URL: Not provided",
+    referenceImageUrl ? `Reference image URL: ${referenceImageUrl}` : "Reference image URL: Not provided",
     requiredString(formData, "notes") ? `Prospect notes: ${requiredString(formData, "notes")}` : ""
   ].filter(Boolean).join("\n");
 
@@ -267,16 +347,26 @@ export async function createShopfrontIntakeLeadAction(formData: FormData) {
       estimatedDealValue: budgetEstimate(budgetRange),
       notes,
       lastContactedAt: null,
-      nextFollowUpAt: new Date(),
-      nextFollowUpDate: new Date(),
+      nextFollowUpAt: now,
+      nextFollowUpDate: now,
+      assets: createAssets.length ? { create: createAssets } : undefined,
       activities: {
-        create: {
-          type: FollowUpActivityType.WHATSAPP,
-          title: "New shopfront mockup request",
-          note: `Service: ${serviceInterestedIn}. Urgency: ${urgency || "Not provided"}. Shopfront: ${shopfrontImageUrl || "Not provided"}. Logo: ${logoUrl || "Not provided"}.`,
-          dueAt: new Date(),
-          completedAt: null
-        }
+        create: [
+          {
+            type: FollowUpActivityType.WHATSAPP,
+            title: "New shopfront mockup request",
+            note: `Service: ${serviceInterestedIn}. Urgency: ${urgency || "Not provided"}. ${assetSummary}`,
+            dueAt: now,
+            completedAt: null
+          },
+          {
+            type: FollowUpActivityType.NOTE,
+            title: "Prepare shopfront mockup",
+            note: `${assetSummary} Design notes: ${requiredString(formData, "notes") || preferredStyle || "No extra notes provided"}.`,
+            dueAt: next,
+            completedAt: null
+          }
+        ]
       }
     }
   });
@@ -440,6 +530,11 @@ export async function scheduleFollowUpTomorrowAction(quoteId: string) {
     };
   }
 }
+
+
+
+
+
 
 
 

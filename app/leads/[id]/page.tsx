@@ -13,7 +13,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
   return (
     <DashboardShell>
-      <LeadDetail lead={data.lead} relatedQuotes={data.quotes} activities={data.activities} />
+      <LeadDetail lead={data.lead} relatedQuotes={data.quotes} activities={data.activities} assets={data.assets} />
     </DashboardShell>
   );
 }
+
