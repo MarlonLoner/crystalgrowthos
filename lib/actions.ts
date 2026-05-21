@@ -1,4 +1,4 @@
-﻿"use server";
+"use server";
 
 import { FollowUpActivityType, LeadStatus, Prisma, QuoteStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
@@ -443,7 +443,75 @@ export async function createIntakeLeadAction(formData: FormData) {
   redirect("/intake/thank-you");
 }
 
-async function attachRepeatShopfrontSubmission(formData: FormData, email: string) {
+type ShopfrontSubmissionResult = {
+  leadId: string;
+  createdAssetIds: string[];
+  createdActivityIds: string[];
+};
+
+function shopfrontAssetSummary(assets: IntakeAssetInput[]) {
+  const hasShopfront = hasAsset(assets, "SHOPFRONT_IMAGE");
+  const hasLogo = hasAsset(assets, "LOGO");
+  const hasReference = hasAsset(assets, "REFERENCE_IMAGE");
+  return {
+    hasShopfront,
+    hasLogo,
+    hasReference,
+    text: `Assets attached: ${assets.length}. Shopfront: ${hasShopfront ? "yes" : "missing"}. Logo: ${hasLogo ? "yes" : "missing"}. Reference: ${hasReference ? "yes" : "missing"}.`
+  };
+}
+
+async function createShopfrontActivities({
+  leadId,
+  isRepeat,
+  serviceInterestedIn,
+  urgency,
+  assetSummary,
+  designNotes,
+  now,
+  next
+}: {
+  leadId: string;
+  isRepeat: boolean;
+  serviceInterestedIn: string;
+  urgency: string;
+  assetSummary: string;
+  designNotes: string;
+  now: Date;
+  next: Date;
+}) {
+  const firstActivity = await prisma.followUpActivity.create({
+    data: {
+      leadId,
+      type: FollowUpActivityType.WHATSAPP,
+      title: isRepeat ? "Repeat shopfront mockup request" : "New shopfront mockup request",
+      note: isRepeat
+        ? assetSummary
+        : `Service: ${serviceInterestedIn}. Urgency: ${urgency || "Not provided"}. ${assetSummary}`,
+      dueAt: now,
+      completedAt: null
+    },
+    select: { id: true, title: true, type: true, dueAt: true }
+  });
+
+  const reviewActivity = await prisma.followUpActivity.create({
+    data: {
+      leadId,
+      type: FollowUpActivityType.NOTE,
+      title: isRepeat ? "Review updated mockup assets" : "Prepare shopfront mockup",
+      note: isRepeat
+        ? "A returning prospect submitted new or updated mockup assets."
+        : `${assetSummary} Design notes: ${designNotes || "No extra notes provided"}.`,
+      dueAt: next,
+      completedAt: null
+    },
+    select: { id: true, title: true, type: true, dueAt: true }
+  });
+
+  return [firstActivity, reviewActivity];
+}
+
+async function attachRepeatShopfrontSubmission(formData: FormData, email: string, assets: IntakeAssetInput[]): Promise<ShopfrontSubmissionResult> {
   const existing = await findLeadByEmail(email);
   if (!existing) throw new Error("Existing lead not found for repeat shopfront submission");
 
@@ -456,11 +524,7 @@ async function attachRepeatShopfrontSubmission(formData: FormData, email: string
   const source = requiredString(formData, "source") || "Shopfront mockup form";
   const serviceInterestedIn = requiredString(formData, "serviceInterestedIn") || "Shopfront branding mockup";
   const submittedNotes = requiredString(formData, "notes");
-  const assets = parseUploadedAssets(formData);
-  const hasShopfront = hasAsset(assets, "SHOPFRONT_IMAGE");
-  const hasLogo = hasAsset(assets, "LOGO");
-  const hasReference = hasAsset(assets, "REFERENCE_IMAGE");
-  const assetSummary = `New assets submitted: ${assets.length}. Shopfront: ${hasShopfront ? "yes" : "no"}. Logo: ${hasLogo ? "yes" : "no"}. Reference: ${hasReference ? "yes" : "no"}.`;
+  const assetSummary = shopfrontAssetSummary(assets).text;
   const repeatNote = buildRepeatSubmissionNote({
     title: "Repeat shopfront mockup request",
     budgetRange,
@@ -471,6 +535,7 @@ async function attachRepeatShopfrontSubmission(formData: FormData, email: string
     deadline
   });
 
+  console.log("[shopfront-intake] updating existing lead", { existingLeadId: existing.id, email });
   const updated = await prisma.lead.update({
     where: { id: existing.id },
     data: {
@@ -482,124 +547,153 @@ async function attachRepeatShopfrontSubmission(formData: FormData, email: string
       status: existing.status === LeadStatus.LOST ? LeadStatus.FOLLOW_UP_NEEDED : existing.status,
       notes: appendLeadNote(existing.notes, [repeatNote, assetSummary].join("\n")),
       nextFollowUpAt: now,
-      nextFollowUpDate: now,
-      activities: {
-        create: [
-          {
-            type: FollowUpActivityType.WHATSAPP,
-            title: "Repeat shopfront mockup request",
-            note: assetSummary,
-            dueAt: now,
-            completedAt: null
-          },
-          {
-            type: FollowUpActivityType.NOTE,
-            title: "Review updated mockup assets",
-            note: "A returning prospect submitted new or updated mockup assets.",
-            dueAt: next,
-            completedAt: null
-          }
-        ]
-      }
-    }
+      nextFollowUpDate: now
+    },
+    select: { id: true, status: true, source: true, nextFollowUpAt: true, nextFollowUpDate: true }
   });
+  console.log("[shopfront-intake] updated existing lead result", updated);
 
-  await createLeadAssetsForLead(existing.id, assets);
-  return updated;
+  const createdAssets = await createLeadAssetsForLead(existing.id, assets);
+  console.log("[shopfront-intake] created asset ids/count", { count: createdAssets.length, ids: createdAssets.map((asset) => asset.id) });
+
+  const createdActivities = await createShopfrontActivities({
+    leadId: existing.id,
+    isRepeat: true,
+    serviceInterestedIn,
+    urgency,
+    assetSummary,
+    designNotes: submittedNotes || preferredStyle,
+    now,
+    next
+  });
+  console.log("[shopfront-intake] created follow-up activity ids", createdActivities.map((activity) => activity.id));
+
+  return {
+    leadId: existing.id,
+    createdAssetIds: createdAssets.map((asset) => asset.id),
+    createdActivityIds: createdActivities.map((activity) => activity.id)
+  };
 }
 
 export async function createShopfrontIntakeLeadAction(formData: FormData) {
+  console.log("[shopfront-intake] action started");
   requireIntakeFields(formData, ["name", "phone", "email", "businessName"]);
 
   const email = normalizeEmail(formData.get("email"));
+  console.log("[shopfront-intake] normalized email", email);
   if (!email) throw new Error("A valid email is required for shopfront mockup requests.");
 
-  const existingLead = await findLeadByEmail(email);
-  if (existingLead) {
-    const updated = await attachRepeatShopfrontSubmission(formData, email);
-    revalidateIntakeRoutes(updated.id);
-    redirect("/intake/thank-you");
-  }
-
-  const budgetRange = requiredString(formData, "budgetRange");
-  const urgency = requiredString(formData, "urgency");
-  const shopfrontImageUrl = requiredString(formData, "shopfrontImageUrl");
-  const logoUrl = requiredString(formData, "logoUrl");
-  const referenceImageUrl = requiredString(formData, "referenceImageUrl");
-  const preferredStyle = requiredString(formData, "preferredStyle");
-  const deadline = requiredString(formData, "deadline");
-  const source = requiredString(formData, "source") || "Shopfront mockup form";
-  const serviceInterestedIn = requiredString(formData, "serviceInterestedIn") || "Shopfront branding mockup";
   const assets = parseUploadedAssets(formData);
   const createAssets = assetCreateData(assets);
-  const hasShopfront = hasAsset(assets, "SHOPFRONT_IMAGE");
-  const hasLogo = hasAsset(assets, "LOGO");
-  const hasReference = hasAsset(assets, "REFERENCE_IMAGE");
-  const now = new Date();
-  const next = tomorrow();
-  const assetSummary = `Assets attached: ${assets.length}. Shopfront: ${hasShopfront ? "yes" : "missing"}. Logo: ${hasLogo ? "yes" : "missing"}. Reference: ${hasReference ? "yes" : "missing"}.`;
-  const notes = [
-    "Shopfront mockup request",
-    `Preferred style: ${preferredStyle || "Not provided"}`,
-    `Deadline: ${deadline || "Not provided"}`,
-    `Budget range: ${budgetRange || "Not provided"}`,
-    `Urgency: ${urgency || "Not provided"}`,
-    assetSummary,
-    shopfrontImageUrl ? `Shopfront image URL: ${shopfrontImageUrl}` : "Shopfront image URL: Not provided",
-    logoUrl ? `Logo URL: ${logoUrl}` : "Logo URL: Not provided",
-    referenceImageUrl ? `Reference image URL: ${referenceImageUrl}` : "Reference image URL: Not provided",
-    requiredString(formData, "notes") ? `Prospect notes: ${requiredString(formData, "notes")}` : ""
-  ].filter(Boolean).join("\n");
+  console.log("[shopfront-intake] uploaded asset payload received", {
+    rawAssetsJsonLength: requiredString(formData, "assetsJson").length,
+    parsedAssetCount: assets.length,
+    assetTypes: assets.map((asset) => asset.type),
+    assetCreateDataCount: createAssets.length
+  });
+
+  let result: ShopfrontSubmissionResult | null = null;
 
   try {
-    const lead = await prisma.lead.create({
-      data: {
-        name: requiredString(formData, "name"),
-        phone: requiredString(formData, "phone"),
-        email,
-        businessName: requiredString(formData, "businessName"),
-        businessType: requiredString(formData, "businessType") || "Retail / shopfront",
-        source,
-        serviceInterestedIn,
-        status: LeadStatus.NEW_LEAD,
-        dealValue: budgetEstimate(budgetRange),
-        estimatedDealValue: budgetEstimate(budgetRange),
-        notes,
-        lastContactedAt: null,
-        nextFollowUpAt: now,
-        nextFollowUpDate: now,
-        assets: createAssets.length ? { create: createAssets } : undefined,
-        activities: {
-          create: [
-            {
-              type: FollowUpActivityType.WHATSAPP,
-              title: "New shopfront mockup request",
-              note: `Service: ${serviceInterestedIn}. Urgency: ${urgency || "Not provided"}. ${assetSummary}`,
-              dueAt: now,
-              completedAt: null
-            },
-            {
-              type: FollowUpActivityType.NOTE,
-              title: "Prepare shopfront mockup",
-              note: `${assetSummary} Design notes: ${requiredString(formData, "notes") || preferredStyle || "No extra notes provided"}.`,
-              dueAt: next,
-              completedAt: null
-            }
-          ]
-        }
-      }
-    });
+    const existingLead = await findLeadByEmail(email);
+    console.log("[shopfront-intake] existing lead found", existingLead ? { id: existingLead.id, status: existingLead.status, source: existingLead.source } : null);
 
-    revalidateIntakeRoutes(lead.id);
-  } catch (error) {
-    if (isUniqueConstraintError(error)) {
-      const updated = await attachRepeatShopfrontSubmission(formData, email);
-      revalidateIntakeRoutes(updated.id);
+    if (existingLead) {
+      console.log("[shopfront-intake] path", "updating existing lead");
+      result = await attachRepeatShopfrontSubmission(formData, email, assets);
     } else {
-      throw error;
+      console.log("[shopfront-intake] path", "creating new lead");
+      const budgetRange = requiredString(formData, "budgetRange");
+      const urgency = requiredString(formData, "urgency");
+      const shopfrontImageUrl = requiredString(formData, "shopfrontImageUrl");
+      const logoUrl = requiredString(formData, "logoUrl");
+      const referenceImageUrl = requiredString(formData, "referenceImageUrl");
+      const preferredStyle = requiredString(formData, "preferredStyle");
+      const deadline = requiredString(formData, "deadline");
+      const source = requiredString(formData, "source") || "Shopfront mockup form";
+      const serviceInterestedIn = requiredString(formData, "serviceInterestedIn") || "Shopfront branding mockup";
+      const now = new Date();
+      const next = tomorrow();
+      const summary = shopfrontAssetSummary(assets);
+      const submittedNotes = requiredString(formData, "notes");
+      const notes = [
+        "Shopfront mockup request",
+        `Preferred style: ${preferredStyle || "Not provided"}`,
+        `Deadline: ${deadline || "Not provided"}`,
+        `Budget range: ${budgetRange || "Not provided"}`,
+        `Urgency: ${urgency || "Not provided"}`,
+        summary.text,
+        shopfrontImageUrl ? `Shopfront image URL: ${shopfrontImageUrl}` : "Shopfront image URL: Not provided",
+        logoUrl ? `Logo URL: ${logoUrl}` : "Logo URL: Not provided",
+        referenceImageUrl ? `Reference image URL: ${referenceImageUrl}` : "Reference image URL: Not provided",
+        submittedNotes ? `Prospect notes: ${submittedNotes}` : ""
+      ].filter(Boolean).join("\n");
+
+      const lead = await prisma.lead.create({
+        data: {
+          name: requiredString(formData, "name"),
+          phone: requiredString(formData, "phone"),
+          email,
+          businessName: requiredString(formData, "businessName"),
+          businessType: requiredString(formData, "businessType") || "Retail / shopfront",
+          source,
+          serviceInterestedIn,
+          status: LeadStatus.NEW_LEAD,
+          dealValue: budgetEstimate(budgetRange),
+          estimatedDealValue: budgetEstimate(budgetRange),
+          notes,
+          lastContactedAt: null,
+          nextFollowUpAt: now,
+          nextFollowUpDate: now
+        },
+        select: { id: true, email: true, source: true, status: true, nextFollowUpAt: true, nextFollowUpDate: true }
+      });
+      console.log("[shopfront-intake] lead id after create/update", lead);
+
+      const createdAssets = await createLeadAssetsForLead(lead.id, assets);
+      console.log("[shopfront-intake] created asset ids/count", { count: createdAssets.length, ids: createdAssets.map((asset) => asset.id) });
+
+      const createdActivities = await createShopfrontActivities({
+        leadId: lead.id,
+        isRepeat: false,
+        serviceInterestedIn,
+        urgency,
+        assetSummary: summary.text,
+        designNotes: submittedNotes || preferredStyle,
+        now,
+        next
+      });
+      console.log("[shopfront-intake] created follow-up activity ids", createdActivities.map((activity) => activity.id));
+
+      result = {
+        leadId: lead.id,
+        createdAssetIds: createdAssets.map((asset) => asset.id),
+        createdActivityIds: createdActivities.map((activity) => activity.id)
+      };
+    }
+  } catch (error) {
+    console.error("[shopfront-intake] caught error", error);
+
+    if (isUniqueConstraintError(error)) {
+      console.log("[shopfront-intake] P2002 detected, attaching submission to existing lead", { email });
+      result = await attachRepeatShopfrontSubmission(formData, email, assets);
+    } else {
+      throw new Error("We could not save your shopfront mockup request. Please try again or WhatsApp Crystal Branding Studio.");
     }
   }
 
+  if (!result?.leadId) {
+    console.error("[shopfront-intake] no lead id after create/update", result);
+    throw new Error("We could not save your shopfront mockup request. Please try again or WhatsApp Crystal Branding Studio.");
+  }
+
+  console.log("[shopfront-intake] lead id after create/update", result.leadId);
+  console.log("[shopfront-intake] asset create data count", createAssets.length);
+  console.log("[shopfront-intake] final created asset ids/count", { count: result.createdAssetIds.length, ids: result.createdAssetIds });
+  console.log("[shopfront-intake] final created follow-up activity ids", result.createdActivityIds);
+
+  revalidateIntakeRoutes(result.leadId);
+  console.log("[shopfront-intake] redirect target", "/intake/thank-you");
   redirect("/intake/thank-you");
 }
 export async function updateQuoteStatusAction(quoteId: string, statusValue: string) {
