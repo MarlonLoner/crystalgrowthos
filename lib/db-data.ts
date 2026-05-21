@@ -2,6 +2,7 @@ import "server-only";
 import { Lead as PrismaLead, Quote as PrismaQuote, QuoteLineItem as PrismaQuoteLineItem, FollowUpActivity as PrismaActivity, LeadAsset as PrismaLeadAsset } from "@prisma/client";
 import { followUpActivities, Lead, leads, Quote, quotes } from "@/lib/mock-data";
 import { prisma } from "@/lib/prisma";
+import { suggestQuoteLineItems } from "@/lib/quote-suggestions";
 
 const statusToLabel = {
   NEW_LEAD: "New Lead",
@@ -205,6 +206,78 @@ export async function getQuoteDetailForPage(id: string) {
   if (!quote) return null;
   const lead = leads.find((item) => item.id === quote.leadId);
   return { quote, lead, source: "fallback" as QuoteDetailSource };
+}
+export async function getNextQuoteNumber() {
+  const year = new Date().getFullYear();
+  try {
+    const count = await prisma.quote.count();
+    return `CBS-${year}-${String(count + 1).padStart(3, "0")}`;
+  } catch {
+    return `CBS-${year}-001`;
+  }
+}
+
+export async function getQuoteCreateData(leadId?: string | null) {
+  try {
+    const [dbLeads, quoteNumber] = await Promise.all([
+      prisma.lead.findMany({ orderBy: { createdAt: "desc" } }),
+      getNextQuoteNumber()
+    ]);
+
+    const selectedLead = leadId
+      ? await prisma.lead.findUnique({
+          where: { id: leadId },
+          include: {
+            assets: { orderBy: { createdAt: "desc" } },
+            activities: { orderBy: { createdAt: "desc" }, take: 8 },
+            quotes: { include: { lineItems: true }, orderBy: { createdAt: "desc" } }
+          }
+        })
+      : null;
+
+    const latestMockupActivity = selectedLead?.activities.find((activity) => /mockup|ready for quote/i.test(`${activity.title} ${activity.note ?? ""}`));
+    const suggestedLineItems = selectedLead ? suggestQuoteLineItems(selectedLead.serviceInterestedIn, selectedLead.notes ?? "") : [];
+    const leadNotes = selectedLead ? [
+      selectedLead.notes ?? "",
+      latestMockupActivity ? `Latest mockup activity: ${latestMockupActivity.title} - ${latestMockupActivity.note ?? ""}` : ""
+    ].filter(Boolean).join("\n\n") : "";
+
+    return {
+      source: "database" as const,
+      leads: dbLeads.map(mapLead),
+      quoteNumber,
+      selectedLead: selectedLead ? mapLead(selectedLead) : null,
+      assets: selectedLead ? selectedLead.assets.map(mapAsset) : [],
+      activities: selectedLead ? selectedLead.activities.map(mapActivity) : [],
+      existingQuotes: selectedLead ? selectedLead.quotes.map(mapQuote) : [],
+      suggestedLineItems,
+      initialQuote: selectedLead ? {
+        leadId: selectedLead.id,
+        clientName: selectedLead.name,
+        businessName: selectedLead.businessName,
+        quoteNumber,
+        serviceCategory: selectedLead.serviceInterestedIn,
+        notes: leadNotes,
+        terms: "50% deposit to start production. Balance due before installation or collection. Quote valid for 14 days.",
+        discount: 0,
+        expiryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+        lineItems: suggestedLineItems
+      } : null
+    };
+  } catch (error) {
+    console.error("[quote-create] database lookup failed", error);
+    return {
+      source: "fallback" as const,
+      leads,
+      quoteNumber: `CBS-${new Date().getFullYear()}-001`,
+      selectedLead: null,
+      assets: [],
+      activities: [],
+      existingQuotes: [],
+      suggestedLineItems: [],
+      initialQuote: null
+    };
+  }
 }
 export async function getQuotesForPage() {
   try {

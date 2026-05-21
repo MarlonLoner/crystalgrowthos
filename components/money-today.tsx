@@ -103,7 +103,7 @@ export function MoneyToday({ leads = [], quotes = [], activities = [], assets = 
               <div className="mt-4 flex flex-wrap gap-2">
                 <WhatsAppAction phone={lead.phone} message={workflow.message} />
                 <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/leads/${lead.id}`}><Eye size={14} className="inline" /> View Lead</Link>
-                <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/quotes/new?lead=${lead.id}`}><FilePlus2 size={14} className="inline" /> Create Quote</Link>
+                <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/quotes/new?leadId=${lead.id}`}><FilePlus2 size={14} className="inline" /> Create Quote</Link>
                 <button type="button" onClick={() => setDone((current) => [...current, `mockup-${lead.id}`])} className="rounded-lg bg-emerald-400 px-3 py-2 text-xs font-black text-obsidian"><CheckCircle2 size={14} className="inline" /> Hide Today</button>
               </div>
             </div>
@@ -145,7 +145,7 @@ export function MoneyToday({ leads = [], quotes = [], activities = [], assets = 
                     <div className="flex flex-wrap gap-2">
                       <WhatsAppAction phone={item.lead.phone} message={item.suggestedAction.message} />
                       <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/leads/${item.lead.id}`}><Eye size={14} className="inline" /> View Lead</Link>
-                      <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/quotes/new?lead=${item.lead.id}`}><FilePlus2 size={14} className="inline" /> Create Quote</Link>
+                      <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/quotes/new?leadId=${item.lead.id}`}><FilePlus2 size={14} className="inline" /> Create Quote</Link>
                       {item.quote ? <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/quotes/${item.quote.id}`}><ReceiptText size={14} className="inline" /> View Quote</Link> : null}
                       <ActionButton action="complete-follow-up" leadId={item.lead.id} note={item.reason} className="rounded-lg bg-emerald-400 px-3 py-2 text-xs font-black text-obsidian"><CheckCircle2 size={14} className="inline" /> Mark Done</ActionButton>
                     </div>

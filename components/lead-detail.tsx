@@ -49,7 +49,7 @@ export function LeadDetail({
             <p className="mt-2 text-mercury">{lead.businessName} - {lead.serviceInterestedIn}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link className={buttonClass} href={`/quotes/new?lead=${lead.id}`}><FilePlus2 size={18} /> Create Quote</Link>
+            <Link className={buttonClass} href={`/quotes/new?leadId=${lead.id}`}><FilePlus2 size={18} /> {mockupWorkflow.status === "Ready for Quote" ? "Create Quote from Mockup" : "Create Quote"}</Link>
             <Link className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2.5 text-sm font-bold text-white" href={`/leads/${lead.id}/edit`}><Edit size={18} /> Edit Lead</Link>
             <ActionButton action="mark-contacted" leadId={lead.id} className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2.5 text-sm font-bold text-white"><CheckCircle2 size={18} /> Mark Contacted</ActionButton>
           </div>
@@ -121,7 +121,7 @@ export function LeadDetail({
                 <ActionButton action="mockup-in-design" leadId={lead.id} className="rounded-lg bg-aurum px-3 py-2 text-xs font-black text-obsidian"><Brush size={14} className="inline" /> Mark In Design</ActionButton>
                 <ActionButton action="mockup-sent" leadId={lead.id} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><Send size={14} className="inline" /> Mark Mockup Sent</ActionButton>
                 <ActionButton action="ready-for-quote" leadId={lead.id} className="rounded-lg bg-emerald-400 px-3 py-2 text-xs font-black text-obsidian"><CheckCircle2 size={14} className="inline" /> Mark Ready for Quote</ActionButton>
-                <Link href={`/quotes/new?lead=${lead.id}`} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><FilePlus2 size={14} className="inline" /> Create Quote</Link>
+                <Link href={`/quotes/new?leadId=${lead.id}`} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><FilePlus2 size={14} className="inline" /> Create Quote</Link>
               </div>
             </Panel>
           ) : null}

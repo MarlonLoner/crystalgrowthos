@@ -763,6 +763,94 @@ export async function requestMissingAssetsAction(leadId: string) {
   revalidateMockupRoutes(leadId);
   return { ok: true, message: "Missing assets request logged", activityId: requested.id, followUpActivityId: followUp.id };
 }
+function quoteStatusFromLabel(value: string) {
+  const normalized = value.trim().toUpperCase().replaceAll(" ", "_").replaceAll("-", "_");
+  return (QuoteStatus as Record<string, QuoteStatus>)[normalized] ?? QuoteStatus.DRAFT;
+}
+
+async function nextQuoteNumberForAction(fallback?: string) {
+  if (fallback?.trim()) return fallback.trim();
+  const year = new Date().getFullYear();
+  const count = await prisma.quote.count();
+  return `CBS-${year}-${String(count + 1).padStart(3, "0")}`;
+}
+
+export async function createQuoteAction(formData: FormData) {
+  const leadId = requiredString(formData, "leadId");
+  if (!leadId) throw new Error("A lead is required to create a quote.");
+
+  const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: { id: true, status: true } });
+  if (!lead) throw new Error(`Lead not found: ${leadId}`);
+
+  const descriptions = formData.getAll("lineDescription").map((value) => String(value).trim());
+  const quantities = formData.getAll("lineQuantity").map((value) => Number(value || 0));
+  const unitPrices = formData.getAll("lineUnitPrice").map((value) => Number(value || 0));
+  const lineItems = descriptions
+    .map((description, index) => ({
+      description,
+      quantity: Number.isFinite(quantities[index]) && quantities[index] > 0 ? quantities[index] : 1,
+      unitPrice: Number.isFinite(unitPrices[index]) ? unitPrices[index] : 0
+    }))
+    .filter((item) => item.description);
+
+  if (!lineItems.length) throw new Error("At least one quote line item is required.");
+
+  const discount = Number(requiredString(formData, "discount") || 0);
+  const total = lineItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  const finalTotal = Math.max(total - (Number.isFinite(discount) ? discount : 0), 0);
+  const quoteNumber = await nextQuoteNumberForAction(requiredString(formData, "quoteNumber"));
+  const status = quoteStatusFromLabel(requiredString(formData, "status"));
+  const now = new Date();
+
+  const quote = await prisma.quote.create({
+    data: {
+      leadId,
+      quoteNumber,
+      clientName: requiredString(formData, "clientName"),
+      businessName: requiredString(formData, "businessName"),
+      serviceCategory: requiredString(formData, "serviceCategory"),
+      status,
+      discount: String(Number.isFinite(discount) ? discount : 0),
+      total: String(total),
+      finalTotal: String(finalTotal),
+      notes: requiredString(formData, "notes"),
+      terms: requiredString(formData, "terms"),
+      expiryDate: optionalDate(formData.get("expiryDate")) ?? tomorrow(),
+      lineItems: {
+        create: lineItems.map((item) => ({
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: String(item.unitPrice),
+          total: String(item.quantity * item.unitPrice)
+        }))
+      }
+    },
+    select: { id: true, leadId: true, quoteNumber: true }
+  });
+
+  await prisma.lead.update({
+    where: { id: leadId },
+    data: {
+      status: status === QuoteStatus.SENT ? LeadStatus.QUOTE_SENT : LeadStatus.QUOTE_REQUESTED,
+      nextFollowUpAt: now,
+      nextFollowUpDate: now,
+      activities: {
+        create: {
+          type: FollowUpActivityType.QUOTE_CREATED,
+          title: "Quote created from lead",
+          note: "Quote was created from lead/mockup workflow.",
+          completedAt: now
+        }
+      }
+    }
+  });
+
+  revalidateSalesRoutes(quote.id, leadId);
+  revalidatePath("/mockups");
+  revalidatePath("/money-today");
+  revalidatePath("/reports/revenue");
+  redirect(`/quotes/${quote.id}`);
+}
 export async function updateQuoteStatusAction(quoteId: string, statusValue: string) {
   console.log("[quote-action] updateQuoteStatusAction called", { quoteId, statusValue });
 

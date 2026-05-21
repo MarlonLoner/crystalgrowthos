@@ -1,4 +1,4 @@
-﻿import { Edit, Eye, FilePlus2, Plus } from "lucide-react";
+import { Edit, Eye, FilePlus2, Plus } from "lucide-react";
 import Link from "next/link";
 import type { LeadStage } from "@/lib/mock-data";
 
@@ -63,7 +63,7 @@ export function LeadList({ leads = [] }: LeadListProps) {
                     <div className="flex flex-wrap gap-2">
                       <Link className="rounded-lg bg-aurum px-3 py-2 text-xs font-black text-obsidian" href={`/leads/${lead.id}`}><Eye size={14} className="inline" /> View</Link>
                       <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/leads/${lead.id}/edit`}><Edit size={14} className="inline" /> Edit</Link>
-                      <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/quotes/new?lead=${lead.id}`}><FilePlus2 size={14} className="inline" /> Quote</Link>
+                      <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/quotes/new?leadId=${lead.id}`}><FilePlus2 size={14} className="inline" /> Quote</Link>
                       <WhatsAppAction phone={lead.phone} message={message} />
                     </div>
                   </td>

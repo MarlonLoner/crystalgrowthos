@@ -88,7 +88,7 @@ export function MockupsBoard({
                     <ActionButton action="mockup-in-design" leadId={lead.id} className="rounded-lg bg-aurum px-3 py-2 text-xs font-black text-obsidian"><Brush size={14} className="inline" /> Mark In Design</ActionButton>
                     <ActionButton action="mockup-sent" leadId={lead.id} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><Send size={14} className="inline" /> Mark Mockup Sent</ActionButton>
                     <ActionButton action="ready-for-quote" leadId={lead.id} className="rounded-lg bg-emerald-400 px-3 py-2 text-xs font-black text-obsidian"><CheckCircle2 size={14} className="inline" /> Ready for Quote</ActionButton>
-                    <Link href={`/quotes/new?lead=${lead.id}`} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><FilePlus2 size={14} className="inline" /> Create Quote</Link>
+                    <Link href={`/quotes/new?leadId=${lead.id}`} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><FilePlus2 size={14} className="inline" /> Create Quote</Link>
                   </div>
                 </article>
               ))}

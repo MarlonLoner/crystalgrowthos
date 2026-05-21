@@ -170,6 +170,20 @@ Manual test:
 5. Open `/money-today` and confirm mockup production actions appear.
 6. Click Mark Ready for Quote, then create a quote from the same lead.
 7. Open `/api/debug/mockups` to inspect inferred status, assets, activities, and related quotes.
+
+## Create Quote From Lead
+
+Use `/quotes/new?leadId=LEAD_ID` to create a database-backed quote directly from a lead or mockup request. When a lead id is present, Crystal Growth OS loads the lead, assets, recent activities, and existing quotes, then pre-fills the quote form with client name, business name, service category, notes, default quote terms, and suggested editable line items.
+
+This connects the mockup workflow to revenue: after a shopfront request is marked Ready for Quote, click Create Quote from the lead detail page or Mockups board, review the assets, adjust suggested pricing, and save the quote. Saving creates `Quote` and `QuoteLineItem` records, updates the lead status, and logs a `Quote created from lead` activity.
+
+Manual test:
+1. Submit `/intake/shopfront` with assets.
+2. Open `/mockups`, mark the request In Design, Mockup Sent, then Ready for Quote.
+3. Click Create Quote and confirm `/quotes/new?leadId=...` opens.
+4. Confirm the form is prefilled and suggested line items are editable.
+5. Save the quote and confirm it appears in `/quotes` and on the lead detail page.
+6. Open `/api/debug/quote-from-lead/[leadId]` to verify lead, assets, suggested line items, existing quotes, and activities.
 ## Lead Capture + WhatsApp Execution
 
 Visit `/leads` to manage the lead list. Use `/leads/new` to capture a new opportunity, `/leads/lead-1` to inspect a lead, and `/leads/lead-1/edit` to test the edit form.

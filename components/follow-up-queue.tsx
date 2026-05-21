@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { CheckCircle2, FilePlus2, Mail, MessageCircle, MoveRight } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -116,7 +116,7 @@ export function FollowUpQueue({ leads = mockLeads, quotes = mockQuotes }: { lead
                         <button className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" onClick={() => generateMessage(lead, "email")}><Mail size={14} className="inline" /> Email</button>
                         <ActionButton action="mark-contacted" leadId={lead.id} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><CheckCircle2 size={14} className="inline" /> Mark Contacted</ActionButton>
                         <button className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><MoveRight size={14} className="inline" /> Stage</button>
-                        <a className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/quotes/new?lead=${lead.id}`}><FilePlus2 size={14} className="inline" /> Quote</a>
+                        <a className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/quotes/new?leadId=${lead.id}`}><FilePlus2 size={14} className="inline" /> Quote</a>
                       </div>
                     </td>
                   </tr>
