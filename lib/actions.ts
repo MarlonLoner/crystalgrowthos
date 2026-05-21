@@ -1,6 +1,6 @@
 ﻿"use server";
 
-import { FollowUpActivityType, LeadStatus, QuoteStatus } from "@prisma/client";
+import { FollowUpActivityType, LeadStatus, Prisma, QuoteStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -165,6 +165,87 @@ export async function completeFollowUpActivityAction(input: { leadId: string; ac
   return { ok: true, message: "Follow-up marked done" };
 }
 
+function normalizeEmail(value: FormDataEntryValue | string | null | undefined) {
+  const email = String(value ?? "").trim().toLowerCase();
+  return email || null;
+}
+
+async function findLeadByEmail(email: string) {
+  return prisma.lead.findUnique({ where: { email } });
+}
+
+function appendLeadNote(existingNotes: string | null | undefined, newNote: string) {
+  return [existingNotes?.trim(), newNote.trim()].filter(Boolean).join("\n\n");
+}
+
+function submissionTimestamp() {
+  return new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+}
+
+function buildRepeatSubmissionNote({
+  title,
+  budgetRange,
+  urgency,
+  source,
+  notes,
+  preferredStyle,
+  deadline
+}: {
+  title: string;
+  budgetRange?: string;
+  urgency?: string;
+  source?: string;
+  notes?: string;
+  preferredStyle?: string;
+  deadline?: string;
+}) {
+  return [
+    `${title} received on ${submissionTimestamp()}`,
+    source ? `Source: ${source}` : "",
+    preferredStyle ? `Preferred style: ${preferredStyle}` : "",
+    deadline ? `Deadline: ${deadline}` : "",
+    budgetRange ? `Budget range: ${budgetRange}` : "",
+    urgency ? `Urgency: ${urgency}` : "",
+    notes ? `Submitted notes: ${notes}` : ""
+  ].filter(Boolean).join("\n");
+}
+
+function isUniqueConstraintError(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+async function createLeadAssetsForLead(leadId: string, assets: IntakeAssetInput[]) {
+  const data = assetCreateData(assets).map((asset) => ({ ...asset, leadId }));
+  if (!data.length) return [];
+
+  return Promise.all(data.map((asset) => prisma.leadAsset.create({ data: asset })));
+}
+
+async function createFirstResponseActivity(leadId: string, title: string, note: string, dueAt = new Date()) {
+  return prisma.followUpActivity.create({
+    data: {
+      leadId,
+      type: FollowUpActivityType.WHATSAPP,
+      title,
+      note,
+      dueAt,
+      completedAt: null
+    }
+  });
+}
+
+async function createMockupReviewActivity(leadId: string, note: string, dueAt = tomorrow()) {
+  return prisma.followUpActivity.create({
+    data: {
+      leadId,
+      type: FollowUpActivityType.NOTE,
+      title: "Review updated mockup assets",
+      note,
+      dueAt,
+      completedAt: null
+    }
+  });
+}
 function budgetEstimate(value: string) {
   const text = value.toLowerCase();
   if (text.includes("2000") || text.includes("5000")) return "2500";
@@ -255,8 +336,60 @@ function revalidateIntakeRoutes(leadId?: string) {
   if (leadId) revalidatePath(`/leads/${leadId}`);
 }
 
+async function attachRepeatIntakeSubmission(formData: FormData, email: string) {
+  const existing = await findLeadByEmail(email);
+  if (!existing) throw new Error("Existing lead not found for repeat intake submission");
+
+  const now = new Date();
+  const budgetRange = requiredString(formData, "budgetRange");
+  const urgency = requiredString(formData, "urgency");
+  const source = requiredString(formData, "source") || "Website intake";
+  const submittedNotes = requiredString(formData, "notes");
+  const repeatNote = buildRepeatSubmissionNote({
+    title: "Repeat intake submission",
+    budgetRange,
+    urgency,
+    source,
+    notes: submittedNotes
+  });
+
+  return prisma.lead.update({
+    where: { id: existing.id },
+    data: {
+      phone: requiredString(formData, "phone") || existing.phone,
+      businessName: requiredString(formData, "businessName") || existing.businessName,
+      businessType: requiredString(formData, "businessType") || existing.businessType,
+      serviceInterestedIn: requiredString(formData, "serviceInterestedIn") || existing.serviceInterestedIn,
+      source,
+      status: existing.status === LeadStatus.LOST ? LeadStatus.FOLLOW_UP_NEEDED : existing.status,
+      notes: appendLeadNote(existing.notes, repeatNote),
+      nextFollowUpAt: now,
+      nextFollowUpDate: now,
+      activities: {
+        create: {
+          type: FollowUpActivityType.WHATSAPP,
+          title: "Repeat intake submission",
+          note: "This prospect submitted another intake request through Crystal Growth OS.",
+          dueAt: now,
+          completedAt: null
+        }
+      }
+    }
+  });
+}
+
 export async function createIntakeLeadAction(formData: FormData) {
   requireIntakeFields(formData, ["name", "phone", "email", "businessName", "serviceInterestedIn"]);
+
+  const email = normalizeEmail(formData.get("email"));
+  if (!email) throw new Error("A valid email is required for intake submissions.");
+
+  const existingLead = await findLeadByEmail(email);
+  if (existingLead) {
+    const updated = await attachRepeatIntakeSubmission(formData, email);
+    revalidateIntakeRoutes(updated.id);
+    redirect("/intake/thank-you");
+  }
 
   const budgetRange = requiredString(formData, "budgetRange");
   const urgency = requiredString(formData, "urgency");
@@ -268,40 +401,125 @@ export async function createIntakeLeadAction(formData: FormData) {
     requiredString(formData, "notes") ? `Prospect notes: ${requiredString(formData, "notes")}` : ""
   ].filter(Boolean).join("\n");
 
-  const lead = await prisma.lead.create({
-    data: {
-      name: requiredString(formData, "name"),
-      phone: requiredString(formData, "phone"),
-      email: requiredString(formData, "email"),
-      businessName: requiredString(formData, "businessName"),
-      businessType: requiredString(formData, "businessType") || "Not specified",
-      source,
-      serviceInterestedIn: requiredString(formData, "serviceInterestedIn"),
-      status: LeadStatus.NEW_LEAD,
-      dealValue: budgetEstimate(budgetRange),
-      estimatedDealValue: budgetEstimate(budgetRange),
-      notes,
-      lastContactedAt: null,
-      nextFollowUpAt: new Date(),
-      nextFollowUpDate: new Date(),
-      activities: {
-        create: {
-          type: FollowUpActivityType.WHATSAPP,
-          title: "New lead first response",
-          note: `Send first response for ${requiredString(formData, "serviceInterestedIn")}. Urgency: ${urgency || "Not provided"}. Budget: ${budgetRange || "Not provided"}.`,
-          dueAt: new Date(),
-          completedAt: null
+  try {
+    const lead = await prisma.lead.create({
+      data: {
+        name: requiredString(formData, "name"),
+        phone: requiredString(formData, "phone"),
+        email,
+        businessName: requiredString(formData, "businessName"),
+        businessType: requiredString(formData, "businessType") || "Not specified",
+        source,
+        serviceInterestedIn: requiredString(formData, "serviceInterestedIn"),
+        status: LeadStatus.NEW_LEAD,
+        dealValue: budgetEstimate(budgetRange),
+        estimatedDealValue: budgetEstimate(budgetRange),
+        notes,
+        lastContactedAt: null,
+        nextFollowUpAt: new Date(),
+        nextFollowUpDate: new Date(),
+        activities: {
+          create: {
+            type: FollowUpActivityType.WHATSAPP,
+            title: "New lead first response",
+            note: `Send first response for ${requiredString(formData, "serviceInterestedIn")}. Urgency: ${urgency || "Not provided"}. Budget: ${budgetRange || "Not provided"}.`,
+            dueAt: new Date(),
+            completedAt: null
+          }
         }
+      }
+    });
+
+    revalidateIntakeRoutes(lead.id);
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      const updated = await attachRepeatIntakeSubmission(formData, email);
+      revalidateIntakeRoutes(updated.id);
+    } else {
+      throw error;
+    }
+  }
+
+  redirect("/intake/thank-you");
+}
+
+async function attachRepeatShopfrontSubmission(formData: FormData, email: string) {
+  const existing = await findLeadByEmail(email);
+  if (!existing) throw new Error("Existing lead not found for repeat shopfront submission");
+
+  const now = new Date();
+  const next = tomorrow();
+  const budgetRange = requiredString(formData, "budgetRange");
+  const urgency = requiredString(formData, "urgency");
+  const preferredStyle = requiredString(formData, "preferredStyle");
+  const deadline = requiredString(formData, "deadline");
+  const source = requiredString(formData, "source") || "Shopfront mockup form";
+  const serviceInterestedIn = requiredString(formData, "serviceInterestedIn") || "Shopfront branding mockup";
+  const submittedNotes = requiredString(formData, "notes");
+  const assets = parseUploadedAssets(formData);
+  const hasShopfront = hasAsset(assets, "SHOPFRONT_IMAGE");
+  const hasLogo = hasAsset(assets, "LOGO");
+  const hasReference = hasAsset(assets, "REFERENCE_IMAGE");
+  const assetSummary = `New assets submitted: ${assets.length}. Shopfront: ${hasShopfront ? "yes" : "no"}. Logo: ${hasLogo ? "yes" : "no"}. Reference: ${hasReference ? "yes" : "no"}.`;
+  const repeatNote = buildRepeatSubmissionNote({
+    title: "Repeat shopfront mockup request",
+    budgetRange,
+    urgency,
+    source,
+    notes: submittedNotes,
+    preferredStyle,
+    deadline
+  });
+
+  const updated = await prisma.lead.update({
+    where: { id: existing.id },
+    data: {
+      phone: requiredString(formData, "phone") || existing.phone,
+      businessName: requiredString(formData, "businessName") || existing.businessName,
+      businessType: requiredString(formData, "businessType") || existing.businessType,
+      serviceInterestedIn,
+      source,
+      status: existing.status === LeadStatus.LOST ? LeadStatus.FOLLOW_UP_NEEDED : existing.status,
+      notes: appendLeadNote(existing.notes, [repeatNote, assetSummary].join("\n")),
+      nextFollowUpAt: now,
+      nextFollowUpDate: now,
+      activities: {
+        create: [
+          {
+            type: FollowUpActivityType.WHATSAPP,
+            title: "Repeat shopfront mockup request",
+            note: assetSummary,
+            dueAt: now,
+            completedAt: null
+          },
+          {
+            type: FollowUpActivityType.NOTE,
+            title: "Review updated mockup assets",
+            note: "A returning prospect submitted new or updated mockup assets.",
+            dueAt: next,
+            completedAt: null
+          }
+        ]
       }
     }
   });
 
-  revalidateIntakeRoutes(lead.id);
-  redirect("/intake/thank-you");
+  await createLeadAssetsForLead(existing.id, assets);
+  return updated;
 }
 
 export async function createShopfrontIntakeLeadAction(formData: FormData) {
   requireIntakeFields(formData, ["name", "phone", "email", "businessName"]);
+
+  const email = normalizeEmail(formData.get("email"));
+  if (!email) throw new Error("A valid email is required for shopfront mockup requests.");
+
+  const existingLead = await findLeadByEmail(email);
+  if (existingLead) {
+    const updated = await attachRepeatShopfrontSubmission(formData, email);
+    revalidateIntakeRoutes(updated.id);
+    redirect("/intake/thank-you");
+  }
 
   const budgetRange = requiredString(formData, "budgetRange");
   const urgency = requiredString(formData, "urgency");
@@ -333,45 +551,55 @@ export async function createShopfrontIntakeLeadAction(formData: FormData) {
     requiredString(formData, "notes") ? `Prospect notes: ${requiredString(formData, "notes")}` : ""
   ].filter(Boolean).join("\n");
 
-  const lead = await prisma.lead.create({
-    data: {
-      name: requiredString(formData, "name"),
-      phone: requiredString(formData, "phone"),
-      email: requiredString(formData, "email"),
-      businessName: requiredString(formData, "businessName"),
-      businessType: requiredString(formData, "businessType") || "Retail / shopfront",
-      source,
-      serviceInterestedIn,
-      status: LeadStatus.NEW_LEAD,
-      dealValue: budgetEstimate(budgetRange),
-      estimatedDealValue: budgetEstimate(budgetRange),
-      notes,
-      lastContactedAt: null,
-      nextFollowUpAt: now,
-      nextFollowUpDate: now,
-      assets: createAssets.length ? { create: createAssets } : undefined,
-      activities: {
-        create: [
-          {
-            type: FollowUpActivityType.WHATSAPP,
-            title: "New shopfront mockup request",
-            note: `Service: ${serviceInterestedIn}. Urgency: ${urgency || "Not provided"}. ${assetSummary}`,
-            dueAt: now,
-            completedAt: null
-          },
-          {
-            type: FollowUpActivityType.NOTE,
-            title: "Prepare shopfront mockup",
-            note: `${assetSummary} Design notes: ${requiredString(formData, "notes") || preferredStyle || "No extra notes provided"}.`,
-            dueAt: next,
-            completedAt: null
-          }
-        ]
+  try {
+    const lead = await prisma.lead.create({
+      data: {
+        name: requiredString(formData, "name"),
+        phone: requiredString(formData, "phone"),
+        email,
+        businessName: requiredString(formData, "businessName"),
+        businessType: requiredString(formData, "businessType") || "Retail / shopfront",
+        source,
+        serviceInterestedIn,
+        status: LeadStatus.NEW_LEAD,
+        dealValue: budgetEstimate(budgetRange),
+        estimatedDealValue: budgetEstimate(budgetRange),
+        notes,
+        lastContactedAt: null,
+        nextFollowUpAt: now,
+        nextFollowUpDate: now,
+        assets: createAssets.length ? { create: createAssets } : undefined,
+        activities: {
+          create: [
+            {
+              type: FollowUpActivityType.WHATSAPP,
+              title: "New shopfront mockup request",
+              note: `Service: ${serviceInterestedIn}. Urgency: ${urgency || "Not provided"}. ${assetSummary}`,
+              dueAt: now,
+              completedAt: null
+            },
+            {
+              type: FollowUpActivityType.NOTE,
+              title: "Prepare shopfront mockup",
+              note: `${assetSummary} Design notes: ${requiredString(formData, "notes") || preferredStyle || "No extra notes provided"}.`,
+              dueAt: next,
+              completedAt: null
+            }
+          ]
+        }
       }
-    }
-  });
+    });
 
-  revalidateIntakeRoutes(lead.id);
+    revalidateIntakeRoutes(lead.id);
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      const updated = await attachRepeatShopfrontSubmission(formData, email);
+      revalidateIntakeRoutes(updated.id);
+    } else {
+      throw error;
+    }
+  }
+
   redirect("/intake/thank-you");
 }
 export async function updateQuoteStatusAction(quoteId: string, statusValue: string) {
@@ -530,6 +758,10 @@ export async function scheduleFollowUpTomorrowAction(quoteId: string) {
     };
   }
 }
+
+
+
+
 
 
 

@@ -178,6 +178,13 @@ Visit `/quotes` to test the quote list. Use `/quotes/new` to open the create quo
 
 The quote model supports client/lead, business name, quote number, service category, line items, quantity, unit price, totals, discount, final total, status, notes, terms, created date, and expiry date.
 
+## Duplicate Intake Handling
+
+Public intake uses normalized email as the identity key. If a new submission uses an email that already exists, Crystal Growth OS updates the existing lead instead of creating a duplicate or exposing a Prisma unique constraint error.
+
+Repeat `/intake` submissions append a timestamped note, refresh the next follow-up date, and create a `Repeat intake submission` WhatsApp activity.
+
+Repeat `/intake/shopfront` submissions attach any new shopfront/logo/reference assets to the same lead, append a timestamped note, and create `Repeat shopfront mockup request` plus `Review updated mockup assets` activities.
 ## Vercel Blob Asset Upload + Mockup Workflow
 
 Shopfront mockup intake now supports direct image uploads using Vercel Blob. The app stores uploaded shopfront, logo, and reference files as `LeadAsset` records connected to the created lead.
@@ -330,6 +337,7 @@ npm run build
 ```
 
 This SWC issue is environment-specific and should not require rewriting the app.
+
 
 
 
