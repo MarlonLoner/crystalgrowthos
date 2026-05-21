@@ -1,10 +1,14 @@
-﻿"use client";
+"use client";
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
   completeFollowUpActivityAction,
   markLeadContactedAction,
+  markMockupInDesignAction,
+  markMockupSentAction,
+  markReadyForQuoteAction,
+  requestMissingAssetsAction,
   scheduleFollowUpTomorrowAction,
   updateQuoteStatusAction
 } from "@/lib/actions";
@@ -25,7 +29,7 @@ export function ActionButton({
   quoteId?: string;
   activityId?: string;
   note?: string;
-  action: "mark-contacted" | "complete-follow-up" | "quote-status" | "schedule-quote-follow-up";
+  action: "mark-contacted" | "complete-follow-up" | "quote-status" | "schedule-quote-follow-up" | "mockup-in-design" | "mockup-sent" | "ready-for-quote" | "request-missing-assets";
   quoteStatus?: "SENT" | "VIEWED" | "ACCEPTED" | "REJECTED" | "PAID";
 }) {
   const router = useRouter();
@@ -44,7 +48,15 @@ export function ActionButton({
               ? await updateQuoteStatusAction(quoteId, quoteStatus)
               : action === "schedule-quote-follow-up" && quoteId
                 ? await scheduleFollowUpTomorrowAction(quoteId)
-                : { ok: false, message: "Missing action data" };
+                : action === "mockup-in-design" && leadId
+                ? await markMockupInDesignAction(leadId)
+                : action === "mockup-sent" && leadId
+                  ? await markMockupSentAction(leadId)
+                  : action === "ready-for-quote" && leadId
+                    ? await markReadyForQuoteAction(leadId)
+                    : action === "request-missing-assets" && leadId
+                      ? await requestMissingAssetsAction(leadId)
+                      : { ok: false, message: "Missing action data" };
 
         if (result.ok) {
           setMessage(result.message ?? "Saved to database");

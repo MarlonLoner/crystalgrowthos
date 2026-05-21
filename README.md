@@ -1,4 +1,4 @@
-﻿# Crystal Growth OS
+# Crystal Growth OS
 
 Internal AI-powered marketing department dashboard for Crystal Branding Studio.
 
@@ -155,6 +155,21 @@ The Money Today table scores each action as High, Medium, or Low priority using 
 Visit `/reports/revenue` for the revenue report. It shows total leads, new leads this month, quote counts by status, pending/won/lost quote value, average quote value, lead-to-quote rate, quote acceptance rate, quote-to-win rate, best lead source, best service category, and the top 5 open opportunities.
 
 This layer helps the team start each day with a short list of money actions instead of browsing admin screens.
+
+## Mockup Production Board
+
+Visit `/mockups` to manage shopfront mockup requests after assets are received. The board groups mockup leads into New Request, Needs Assets, Assets Received, In Design, Mockup Sent, Ready for Quote, Converted to Quote, and Dormant / Lost.
+
+The workflow is inferred from uploaded `LeadAsset` records, related quotes, and `FollowUpActivity` titles such as `Mockup in design`, `Mockup sent`, and `Ready for quote`. Use the board or lead detail page to request missing assets, mark a mockup in design, mark it sent, and move the lead to ready for quote before creating a quote.
+
+Manual test:
+1. Submit `/intake/shopfront` with a shopfront image and logo.
+2. Open `/mockups` and confirm the lead appears under Assets Received.
+3. Click Mark In Design, then confirm it moves to In Design after refresh.
+4. Click Mark Mockup Sent and confirm a pending Follow up on mockup activity is created.
+5. Open `/money-today` and confirm mockup production actions appear.
+6. Click Mark Ready for Quote, then create a quote from the same lead.
+7. Open `/api/debug/mockups` to inspect inferred status, assets, activities, and related quotes.
 ## Lead Capture + WhatsApp Execution
 
 Visit `/leads` to manage the lead list. Use `/leads/new` to capture a new opportunity, `/leads/lead-1` to inspect a lead, and `/leads/lead-1/edit` to test the edit form.

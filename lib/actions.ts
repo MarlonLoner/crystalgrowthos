@@ -696,6 +696,73 @@ export async function createShopfrontIntakeLeadAction(formData: FormData) {
   console.log("[shopfront-intake] redirect target", "/intake/thank-you");
   redirect("/intake/thank-you");
 }
+function revalidateMockupRoutes(leadId: string) {
+  ["/", "/mockups", "/leads", "/follow-ups", "/money-today", "/intake/inbox", "/reports/revenue"].forEach((path) => revalidatePath(path));
+  revalidatePath(`/leads/${leadId}`);
+}
+
+async function ensureLeadForMockupAction(leadId: string) {
+  const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: { id: true, status: true } });
+  if (!lead) throw new Error(`Lead not found: ${leadId}`);
+  return lead;
+}
+
+export async function markMockupInDesignAction(leadId: string) {
+  await ensureLeadForMockupAction(leadId);
+  const now = new Date();
+  const activity = await prisma.followUpActivity.create({
+    data: { leadId, type: FollowUpActivityType.NOTE, title: "Mockup in design", note: "Shopfront mockup has been moved into design.", completedAt: now },
+    select: { id: true }
+  });
+  revalidateMockupRoutes(leadId);
+  return { ok: true, message: "Mockup moved into design", activityId: activity.id };
+}
+
+export async function markMockupSentAction(leadId: string) {
+  await ensureLeadForMockupAction(leadId);
+  const now = new Date();
+  const next = tomorrow();
+  const sent = await prisma.followUpActivity.create({
+    data: { leadId, type: FollowUpActivityType.WHATSAPP, title: "Mockup sent", note: "Mockup was sent to the prospect.", completedAt: now },
+    select: { id: true }
+  });
+  const followUp = await prisma.followUpActivity.create({
+    data: { leadId, type: FollowUpActivityType.WHATSAPP, title: "Follow up on mockup", note: "Check if the client likes the mockup and wants a quote.", dueAt: next, completedAt: null },
+    select: { id: true }
+  });
+  revalidateMockupRoutes(leadId);
+  return { ok: true, message: "Mockup sent and follow-up scheduled", activityId: sent.id, followUpActivityId: followUp.id };
+}
+
+export async function markReadyForQuoteAction(leadId: string) {
+  const lead = await ensureLeadForMockupAction(leadId);
+  const now = new Date();
+  const activity = await prisma.followUpActivity.create({
+    data: { leadId, type: FollowUpActivityType.NOTE, title: "Ready for quote", note: "Client is ready for quote after mockup.", completedAt: now },
+    select: { id: true }
+  });
+  if (lead.status !== LeadStatus.WON && lead.status !== LeadStatus.LOST) {
+    await prisma.lead.update({ where: { id: leadId }, data: { status: LeadStatus.QUOTE_REQUESTED, nextFollowUpAt: now, nextFollowUpDate: now } });
+  }
+  revalidateMockupRoutes(leadId);
+  return { ok: true, message: "Lead marked ready for quote", activityId: activity.id };
+}
+
+export async function requestMissingAssetsAction(leadId: string) {
+  await ensureLeadForMockupAction(leadId);
+  const now = new Date();
+  const next = tomorrow();
+  const requested = await prisma.followUpActivity.create({
+    data: { leadId, type: FollowUpActivityType.WHATSAPP, title: "Requested missing assets", note: "Asked prospect to send missing logo/shopfront photo.", completedAt: now },
+    select: { id: true }
+  });
+  const followUp = await prisma.followUpActivity.create({
+    data: { leadId, type: FollowUpActivityType.WHATSAPP, title: "Follow up on missing assets", note: "Check if the prospect has sent the missing logo or shopfront photo.", dueAt: next, completedAt: null },
+    select: { id: true }
+  });
+  revalidateMockupRoutes(leadId);
+  return { ok: true, message: "Missing assets request logged", activityId: requested.id, followUpActivityId: followUp.id };
+}
 export async function updateQuoteStatusAction(quoteId: string, statusValue: string) {
   console.log("[quote-action] updateQuoteStatusAction called", { quoteId, statusValue });
 

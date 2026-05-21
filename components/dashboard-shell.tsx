@@ -1,6 +1,7 @@
-﻿import {
+import {
   BarChart3,
   Bot,
+  Brush,
   CalendarClock,
   CircleDollarSign,
   FileText,
@@ -22,6 +23,7 @@ const nav = [
   ["AI Strategy", "/#strategy", Bot],
   ["Leads", "/leads", UsersRound],
   ["Intake Inbox", "/intake/inbox", Inbox],
+  ["Mockups", "/mockups", Brush],
   ["Pipeline", "/#pipeline", BarChart3],
   ["Content", "/#content", Sparkles],
   ["Campaigns", "/#campaigns", Mail],

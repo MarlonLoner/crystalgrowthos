@@ -1,4 +1,4 @@
-﻿import { DashboardShell } from "@/components/dashboard-shell";
+import { DashboardShell } from "@/components/dashboard-shell";
 import { MoneyToday } from "@/components/money-today";
 import { getMoneyTodayPageData } from "@/lib/db-data";
 
@@ -9,7 +9,7 @@ export default async function MoneyTodayPage() {
 
   return (
     <DashboardShell>
-      <MoneyToday leads={data.leads} quotes={data.quotes} activities={data.activities} />
+      <MoneyToday leads={data.leads} quotes={data.quotes} activities={data.activities} assets={data.assets} />
     </DashboardShell>
   );
 }

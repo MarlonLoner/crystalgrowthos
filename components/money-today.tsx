@@ -1,10 +1,12 @@
-﻿"use client";
+"use client";
 
 import { CheckCircle2, Eye, FilePlus2, ReceiptText } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { getAiRevenueBrief, getMoneyActionItems, getRevenueMetrics, Priority, RevenueActivity } from "@/lib/revenue-intelligence";
+import { getAiRevenueBrief, getMoneyActionItems, getRevenueMetrics, Priority } from "@/lib/revenue-intelligence";
+import { getMockupWorkflowItems } from "@/lib/mockup-workflow";
 import { Lead, Quote } from "@/lib/mock-data";
+import type { ActivityView, LeadAssetView } from "@/lib/db-data";
 import { currency, formatDate } from "@/lib/utils";
 import { WhatsAppAction } from "@/components/whatsapp-action";
 import { ActionButton } from "@/components/action-button";
@@ -23,12 +25,14 @@ function percent(value: number) {
 type MoneyTodayProps = {
   leads?: Lead[];
   quotes?: Quote[];
-  activities?: RevenueActivity[];
+  activities?: ActivityView[];
+  assets?: LeadAssetView[];
 };
 
-export function MoneyToday({ leads = [], quotes = [], activities = [] }: MoneyTodayProps) {
+export function MoneyToday({ leads = [], quotes = [], activities = [], assets = [] }: MoneyTodayProps) {
   const [done, setDone] = useState<string[]>([]);
   const items = useMemo(() => getMoneyActionItems(leads, quotes).filter((item) => !done.includes(item.id)), [leads, quotes, done]);
+  const mockupItems = useMemo(() => getMockupWorkflowItems(leads, assets, activities, quotes).filter((item) => !done.includes(`mockup-${item.lead.id}`)), [leads, assets, activities, quotes, done]);
   const metrics = getRevenueMetrics(leads, quotes, activities);
   const brief = getAiRevenueBrief(leads, quotes);
 
@@ -81,7 +85,33 @@ export function MoneyToday({ leads = [], quotes = [], activities = [] }: MoneyTo
         <p className="mt-4 text-sm leading-6 text-slate-200">Biggest risk: {brief.biggestRisk}</p>
       </Panel>
 
-      <Panel>
+            <Panel>
+        <SectionHeading
+          eyebrow="Mockup Production Actions"
+          title={`${mockupItems.length} mockup actions to move forward`}
+          description="Shopfront leads that need assets, design movement, mockup sending, follow-up, or quote creation."
+        />
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+          {mockupItems.map(({ lead, workflow }) => (
+            <div key={lead.id} className="rounded-lg border border-white/10 bg-obsidian/60 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div><p className="font-black text-white">{lead.businessName}</p><p className="mt-1 text-xs text-mercury">{lead.name} - {lead.serviceInterestedIn}</p></div>
+                <span className="rounded-lg bg-aurum/10 px-2 py-1 text-xs font-black text-aurum">{workflow.status}</span>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-200">{workflow.suggestedNextAction}</p>
+              {workflow.missingAssets.length ? <p className="mt-2 text-xs font-bold text-red-200">{workflow.missingAssets.join(", ")}</p> : null}
+              <div className="mt-4 flex flex-wrap gap-2">
+                <WhatsAppAction phone={lead.phone} message={workflow.message} />
+                <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/leads/${lead.id}`}><Eye size={14} className="inline" /> View Lead</Link>
+                <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/quotes/new?lead=${lead.id}`}><FilePlus2 size={14} className="inline" /> Create Quote</Link>
+                <button type="button" onClick={() => setDone((current) => [...current, `mockup-${lead.id}`])} className="rounded-lg bg-emerald-400 px-3 py-2 text-xs font-black text-obsidian"><CheckCircle2 size={14} className="inline" /> Hide Today</button>
+              </div>
+            </div>
+          ))}
+          {mockupItems.length === 0 ? <p className="text-sm text-mercury">No mockup production actions waiting right now.</p> : null}
+        </div>
+      </Panel>
+<Panel>
         <SectionHeading
           eyebrow="Daily Action Queue"
           title={`${items.length} revenue actions remaining`}

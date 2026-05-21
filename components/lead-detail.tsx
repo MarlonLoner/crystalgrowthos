@@ -1,4 +1,4 @@
-﻿import { CheckCircle2, Edit, FilePlus2 } from "lucide-react";
+import { AlertTriangle, Brush, CheckCircle2, Edit, FilePlus2, MessageCircle, Send } from "lucide-react";
 import Link from "next/link";
 import { ActionButton } from "@/components/action-button";
 import { WhatsAppAction } from "@/components/whatsapp-action";
@@ -6,6 +6,7 @@ import { WhatsAppScriptGenerator } from "@/components/whatsapp-script-generator"
 import { buttonClass, Panel, SectionHeading } from "@/components/ui";
 import { ActivityView, LeadAssetView } from "@/lib/db-data";
 import { Lead, Quote, quoteFinalTotal } from "@/lib/mock-data";
+import { inferMockupWorkflow, isMockupRelatedLead } from "@/lib/mockup-workflow";
 import { generateWhatsAppScript } from "@/lib/scripts";
 import { currency, formatDate } from "@/lib/utils";
 
@@ -35,6 +36,8 @@ export function LeadDetail({
   assets?: LeadAssetView[];
 }) {
   const message = generateWhatsAppScript(lead.status === "Lost" ? "dead-lead-revival" : lead.status === "Won" ? "review-request" : "quote-follow-up", lead);
+  const mockupWorkflow = inferMockupWorkflow(lead, assets, activities, relatedQuotes);
+  const showMockupWorkflow = isMockupRelatedLead(lead) || assets.length > 0;
 
   return (
     <div className="space-y-6">
@@ -102,7 +105,27 @@ export function LeadDetail({
             ) : <p className="text-sm text-mercury">No assets uploaded yet.</p>}
           </Panel>
 
-          <Panel>
+                    {showMockupWorkflow ? (
+            <Panel>
+              <SectionHeading eyebrow="Mockup Workflow" title="Shopfront mockup production" description="Track assets, design movement, mockup sending, and quote readiness for this lead." />
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-lg border border-white/10 bg-obsidian/60 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-mercury">Status</p><p className="mt-2 font-black text-white">{mockupWorkflow.status}</p></div>
+                <div className="rounded-lg border border-white/10 bg-obsidian/60 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-mercury">Assets</p><p className="mt-2 font-black text-white">{mockupWorkflow.assetCount}</p></div>
+                <div className="rounded-lg border border-white/10 bg-obsidian/60 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-mercury">Urgency</p><p className="mt-2 font-black text-white">{mockupWorkflow.urgency}</p></div>
+                <div className="rounded-lg border border-white/10 bg-obsidian/60 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-mercury">Latest</p><p className="mt-2 font-black text-white">{mockupWorkflow.latestActivity?.title ?? "No activity yet"}</p></div>
+              </div>
+              {mockupWorkflow.missingAssets.length ? <p className="mt-4 flex items-center gap-2 rounded-lg border border-red-300/25 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-100"><AlertTriangle size={16} /> {mockupWorkflow.missingAssets.join(", ")}</p> : null}
+              <p className="mt-4 rounded-lg border border-white/10 bg-obsidian/60 p-4 text-sm leading-6 text-slate-200">{mockupWorkflow.suggestedNextAction}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <ActionButton action="request-missing-assets" leadId={lead.id} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><MessageCircle size={14} className="inline" /> Request Missing Assets</ActionButton>
+                <ActionButton action="mockup-in-design" leadId={lead.id} className="rounded-lg bg-aurum px-3 py-2 text-xs font-black text-obsidian"><Brush size={14} className="inline" /> Mark In Design</ActionButton>
+                <ActionButton action="mockup-sent" leadId={lead.id} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><Send size={14} className="inline" /> Mark Mockup Sent</ActionButton>
+                <ActionButton action="ready-for-quote" leadId={lead.id} className="rounded-lg bg-emerald-400 px-3 py-2 text-xs font-black text-obsidian"><CheckCircle2 size={14} className="inline" /> Mark Ready for Quote</ActionButton>
+                <Link href={`/quotes/new?lead=${lead.id}`} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><FilePlus2 size={14} className="inline" /> Create Quote</Link>
+              </div>
+            </Panel>
+          ) : null}
+<Panel>
             <SectionHeading eyebrow="Related Quotes" title="Quote history" description="Quote value and status connected to this lead." />
             <div className="space-y-3">
               {relatedQuotes.length ? relatedQuotes.map((quote) => (

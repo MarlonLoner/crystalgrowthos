@@ -1,4 +1,4 @@
-﻿import "server-only";
+import "server-only";
 import { Lead as PrismaLead, Quote as PrismaQuote, QuoteLineItem as PrismaQuoteLineItem, FollowUpActivity as PrismaActivity, LeadAsset as PrismaLeadAsset } from "@prisma/client";
 import { followUpActivities, Lead, leads, Quote, quotes } from "@/lib/mock-data";
 import { prisma } from "@/lib/prisma";
@@ -217,19 +217,23 @@ export async function getQuotesForPage() {
 
 export async function getRevenueSourceData() {
   try {
-    const [dbLeads, dbQuotes, dbActivities] = await Promise.all([
+    const [dbLeads, dbQuotes, dbActivities, dbAssets] = await Promise.all([
       prisma.lead.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.quote.findMany({ include: { lineItems: true }, orderBy: { createdAt: "desc" } }),
-      prisma.followUpActivity.findMany({ orderBy: { createdAt: "desc" } })
+      prisma.followUpActivity.findMany({ orderBy: { createdAt: "desc" } }),
+      prisma.leadAsset.findMany({ orderBy: { createdAt: "desc" } })
     ]);
 
     return {
       leads: dbLeads.map(mapLead),
       quotes: dbQuotes.map(mapQuote),
-      activities: dbActivities.map(mapActivity)
+      activities: dbActivities.map(mapActivity),
+      assets: dbAssets.map(mapAsset),
+      source: "database" as const
     };
-  } catch {
-    return { leads, quotes, activities: followUpActivities };
+  } catch (error) {
+    console.error("[revenue-source] database lookup failed", error);
+    return { leads, quotes, activities: followUpActivities, assets: [], source: "fallback" as const };
   }
 }
 
@@ -240,11 +244,44 @@ export async function getRevenueSourceData() {
 export async function getMoneyTodayPageData() {
   const data = await getRevenueSourceData();
   return {
-    source: "database" as const,
+    source: data.source,
     leads: data.leads,
     quotes: data.quotes,
-    activities: data.activities
+    activities: data.activities,
+    assets: data.assets
   };
+}
+
+export async function getMockupBoardData() {
+  try {
+    const dbLeads = await prisma.lead.findMany({
+      where: {
+        OR: [
+          { source: { contains: "Shopfront", mode: "insensitive" } },
+          { source: { contains: "mockup", mode: "insensitive" } },
+          { serviceInterestedIn: { contains: "Shopfront", mode: "insensitive" } },
+          { serviceInterestedIn: { contains: "mockup", mode: "insensitive" } }
+        ]
+      },
+      orderBy: { updatedAt: "desc" },
+      include: {
+        assets: { orderBy: { createdAt: "desc" } },
+        activities: { orderBy: { createdAt: "desc" } },
+        quotes: { include: { lineItems: true }, orderBy: { createdAt: "desc" } }
+      }
+    });
+
+    return {
+      source: "database" as const,
+      leads: dbLeads.map(mapLead),
+      assets: dbLeads.flatMap((lead) => lead.assets.map(mapAsset)),
+      activities: dbLeads.flatMap((lead) => lead.activities.map(mapActivity)),
+      quotes: dbLeads.flatMap((lead) => lead.quotes.map(mapQuote))
+    };
+  } catch (error) {
+    console.error("[mockups-board] database lookup failed", error);
+    return { source: "fallback" as const, leads: [], assets: [], activities: [], quotes: [] };
+  }
 }
 export type IntakeInboxItem = Lead & {
   urgency: string;
