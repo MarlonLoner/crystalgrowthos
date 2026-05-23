@@ -4,11 +4,12 @@ import { ActionButton } from "@/components/action-button";
 import { WhatsAppAction } from "@/components/whatsapp-action";
 import { WhatsAppScriptGenerator } from "@/components/whatsapp-script-generator";
 import { buttonClass, Panel, SectionHeading } from "@/components/ui";
-import { ActivityView, LeadAssetView, PaymentView, ProductionJobView } from "@/lib/db-data";
+import { ActivityView, LeadAssetView, PaymentView, ProductionJobView, ProofAssetView } from "@/lib/db-data";
 import { Lead, Quote, quoteFinalTotal } from "@/lib/mock-data";
 import { inferMockupWorkflow, isMockupRelatedLead } from "@/lib/mockup-workflow";
 import { generateWhatsAppScript } from "@/lib/scripts";
 import { getProductionSummary } from "@/lib/production-intelligence";
+import { getProofSummary, proofStatusLabel, proofTypeLabel } from "@/lib/proof-intelligence";
 import { currency, formatDate } from "@/lib/utils";
 
 function suggestedNextAction(lead: Lead) {
@@ -31,7 +32,8 @@ export function LeadDetail({
   activities,
   assets = [],
   payments = [],
-  productionJobs = []
+  productionJobs = [],
+  proofAssets = []
 }: {
   lead: Lead;
   relatedQuotes: Quote[];
@@ -39,6 +41,7 @@ export function LeadDetail({
   assets?: LeadAssetView[];
   payments?: PaymentView[];
   productionJobs?: ProductionJobView[];
+  proofAssets?: ProofAssetView[];
 }) {
   const message = generateWhatsAppScript(lead.status === "Lost" ? "dead-lead-revival" : lead.status === "Won" ? "review-request" : "quote-follow-up", lead);
   const mockupWorkflow = inferMockupWorkflow(lead, assets, activities, relatedQuotes);
@@ -221,6 +224,8 @@ export function LeadDetail({
     </div>
   );
 }
+
+
 
 
 

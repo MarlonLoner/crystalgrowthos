@@ -1,4 +1,4 @@
-﻿import { Lead } from "@/lib/mock-data";
+import { Lead } from "@/lib/mock-data";
 
 export type ScriptType =
   | "first-response"
@@ -15,7 +15,13 @@ export type ScriptType =
   | "confirm-assets-received"
   | "mockup-in-progress"
   | "mockup-ready"
-  | "quote-after-mockup";
+  | "quote-after-mockup"
+  | "google-review-request"
+  | "whatsapp-testimonial-request"
+  | "before-after-permission"
+  | "proof-referral-request"
+  | "thank-after-review"
+  | "share-completed-work";
 
 export const scriptTypes: { value: ScriptType; label: string }[] = [
   { value: "first-response", label: "First response" },
@@ -32,7 +38,13 @@ export const scriptTypes: { value: ScriptType; label: string }[] = [
   { value: "confirm-assets-received", label: "Confirm assets received" },
   { value: "mockup-in-progress", label: "Mockup in progress" },
   { value: "mockup-ready", label: "Mockup ready" },
-  { value: "quote-after-mockup", label: "Quote after mockup" }
+  { value: "quote-after-mockup", label: "Quote after mockup" },
+  { value: "google-review-request", label: "Request Google review" },
+  { value: "whatsapp-testimonial-request", label: "WhatsApp testimonial" },
+  { value: "before-after-permission", label: "Before/after permission" },
+  { value: "proof-referral-request", label: "Proof referral request" },
+  { value: "thank-after-review", label: "Thank after review" },
+  { value: "share-completed-work", label: "Share completed work" }
 ];
 
 export function generateWhatsAppScript(type: ScriptType, lead: Pick<Lead, "name" | "businessName" | "serviceInterestedIn" | "status">) {
@@ -54,7 +66,13 @@ export function generateWhatsAppScript(type: ScriptType, lead: Pick<Lead, "name"
     "confirm-assets-received": `Hi ${firstName}, we received the shopfront assets for ${lead.businessName}. The next step is preparing the mockup direction and checking what will work best for visibility.`,
     "mockup-in-progress": `Hi ${firstName}, your shopfront mockup for ${lead.businessName} is in progress. We are checking layout, logo placement, and what will make the brand stand out clearly.`,
     "mockup-ready": `Hi ${firstName}, your shopfront mockup for ${lead.businessName} is ready. Can I send it through for review and then prepare the quote for production?`,
-    "quote-after-mockup": `Hi ${firstName}, based on the mockup for ${lead.businessName}, the next step is a quote for production and installation. Should I prepare the pricing options for you?`
+    "quote-after-mockup": `Hi ${firstName}, based on the mockup for ${lead.businessName}, the next step is a quote for production and installation. Should I prepare the pricing options for you?`,
+    "google-review-request": `Hi ${firstName}, thank you again for trusting Crystal Branding Studio with ${lead.businessName}. If you are happy with the work, please leave us a short Google review. It helps other business owners choose us with confidence.`,
+    "whatsapp-testimonial-request": `Hi ${firstName}, we appreciate working with ${lead.businessName}. Please send us a short WhatsApp testimonial about the finished ${service}. A simple one or two lines is perfect.`,
+    "before-after-permission": `Hi ${firstName}, the finished work for ${lead.businessName} came out nicely. May we share a before/after photo on our WhatsApp status and social pages? We will keep it professional.`,
+    "proof-referral-request": `Hi ${firstName}, do you know another business that needs branding, signage, vinyl, or banners? A referral from you would mean a lot, and we will look after them properly.`,
+    "thank-after-review": `Hi ${firstName}, thank you for the review. We truly appreciate your support and we are glad Crystal Branding Studio could help ${lead.businessName} stand out.`,
+    "share-completed-work": `Hi ${firstName}, we would like to share the completed ${service} for ${lead.businessName} as an example of our work. Please confirm if you are comfortable with us posting it.`
   };
 
   return scripts[type];
@@ -63,5 +81,6 @@ export function generateWhatsAppScript(type: ScriptType, lead: Pick<Lead, "name"
 export function generateEmailScript(lead: Pick<Lead, "name" | "businessName" | "serviceInterestedIn" | "status">) {
   return `Subject: Next step for ${lead.businessName}\n\nHi ${lead.name},\n\nI wanted to follow up on your ${lead.serviceInterestedIn.toLowerCase()} request. The next best step is to confirm your preferred timeline and any artwork/logo files so Crystal Branding Studio can move this forward cleanly.\n\nKind regards,\nCrystal Branding Studio`;
 }
+
 
 

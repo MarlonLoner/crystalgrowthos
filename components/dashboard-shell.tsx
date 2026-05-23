@@ -6,6 +6,7 @@ import {
   CircleDollarSign,
   Factory,
   FileText,
+  Star,
   Inbox,
   LayoutDashboard,
   Mail,
@@ -26,6 +27,7 @@ const nav = [
   ["Intake Inbox", "/intake/inbox", Inbox],
   ["Mockups", "/mockups", Brush],
   ["Production", "/production", Factory],
+  ["Reviews & Content", "/proof", Star],
   ["Pipeline", "/#pipeline", BarChart3],
   ["Content", "/#content", Sparkles],
   ["Campaigns", "/#campaigns", Mail],
@@ -81,6 +83,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
 
 
 

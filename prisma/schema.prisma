@@ -43,6 +43,7 @@ model Lead {
   assets              LeadAsset[]
   payments            Payment[]
   productionJobs      ProductionJob[]
+  proofAssets         ProofAsset[]
 }
 
 model ContentBrief {
@@ -114,6 +115,7 @@ model Quote {
   lineItems       QuoteLineItem[]
   payments        Payment[]
   productionJob   ProductionJob?
+  proofAssets     ProofAsset[]
 }
 
 model QuoteLineItem {
@@ -154,6 +156,23 @@ model ProductionJob {
   updatedAt        DateTime           @updatedAt
   quote            Quote              @relation(fields: [quoteId], references: [id], onDelete: Cascade)
   lead             Lead               @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  proofAssets      ProofAsset[]
+}
+model ProofAsset {
+  id              String           @id @default(cuid())
+  leadId          String
+  quoteId         String?
+  productionJobId String?
+  type            ProofAssetType
+  title           String
+  content         String?
+  url             String?
+  status          ProofStatus      @default(TODO)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  lead            Lead             @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  quote           Quote?           @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  productionJob   ProductionJob?   @relation(fields: [productionJobId], references: [id], onDelete: SetNull)
 }
 model FollowUpActivity {
   id          String               @id @default(cuid())
@@ -228,6 +247,24 @@ enum ProductionPriority {
   HIGH
   URGENT
 }
+enum ProofAssetType {
+  REVIEW_REQUEST
+  TESTIMONIAL
+  BEFORE_AFTER
+  CASE_STUDY
+  REFERRAL_REQUEST
+  SOCIAL_POST
+  OTHER
+}
+
+enum ProofStatus {
+  TODO
+  REQUESTED
+  RECEIVED
+  DRAFTED
+  PUBLISHED
+  ARCHIVED
+}
 enum PaymentMethod {
   CASH
   ECOCASH
@@ -255,3 +292,6 @@ model LeadAsset {
   notes       String?
   createdAt   DateTime      @default(now())
 }
+
+
+

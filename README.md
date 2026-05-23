@@ -192,6 +192,45 @@ Migration:
 - Local development: `npx prisma migrate dev`
 - Production/Vercel database: `npx prisma migrate deploy`
 - If using Neon SQL editor manually, run `prisma/migrations/202605230001_add_payments/migration.sql`.
+## Review + Content Flywheel
+
+Visit `/proof` to manage the proof engine: reviews, testimonials, referral requests, before/after posts, social posts, and case studies created from completed work.
+
+When a production job is marked completed, Crystal Growth OS now creates pending review/content follow-up tasks and `ProofAsset` records for:
+
+```text
+REVIEW_REQUEST
+BEFORE_AFTER
+REFERRAL_REQUEST
+```
+
+Proof statuses:
+
+```text
+TODO
+REQUESTED
+RECEIVED
+DRAFTED
+PUBLISHED
+ARCHIVED
+```
+
+The Proof Engine groups proof opportunities by status and provides actions to request a review, mark a review received, draft a social post, mark proof published, and ask for a referral. Lead detail pages show related proof opportunities, and Money Today highlights proof actions so completed jobs turn into trust-building marketing assets instead of disappearing after delivery.
+
+Manual test:
+1. Complete a production job from `/production`.
+2. Confirm review/content follow-up tasks and proof assets are created.
+3. Open `/proof` and confirm the proof cards appear under To Request.
+4. Click Request Review, then Mark Review Received.
+5. Click Draft Social Post and confirm the generated caption preview is visible.
+6. Click Mark Published and Ask for Referral.
+7. Confirm Money Today and lead detail reflect the updated proof state.
+8. Open `/api/debug/proof` to inspect proof assets, suggested actions, content drafts, and recent activities.
+
+Migration:
+- Local development: `npx prisma migrate dev`
+- Production/Vercel database: `npx prisma migrate deploy`
+- If using Neon SQL editor manually, run `prisma/migrations/202605230003_add_proof_assets/migration.sql`.
 ## Production Job Workflow
 
 Visit `/production` to manage production work after a quote reaches the deposit threshold. Recording a deposit of at least 60% automatically creates one `ProductionJob` for the quote, marks the lead as Won, logs `Production job created`, and creates a pending `Begin production` task.
@@ -439,6 +478,7 @@ npm run build
 ```
 
 This SWC issue is environment-specific and should not require rewriting the app.
+
 
 
 

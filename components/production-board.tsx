@@ -3,7 +3,7 @@ import { CalendarClock, CheckCircle2, Factory, Hammer, MessageCircle, Paintbrush
 import { ActionButton } from "@/components/action-button";
 import { Panel, SectionHeading } from "@/components/ui";
 import { scheduleInstallationAction } from "@/lib/actions";
-import type { PaymentView, ProductionJobView } from "@/lib/db-data";
+import type { PaymentView, ProductionJobView, ProofAssetView } from "@/lib/db-data";
 import { Lead, Quote } from "@/lib/mock-data";
 import { getProductionSummary, productionStatusLabel } from "@/lib/production-intelligence";
 import { currency, formatDate } from "@/lib/utils";
@@ -13,6 +13,7 @@ type ProductionBoardItem = {
   lead: Lead;
   quote: Quote;
   payments: PaymentView[];
+  proofAssets?: ProofAssetView[];
 };
 
 type ProductionBoardProps = {
@@ -38,7 +39,7 @@ function priorityClass(priority: string) {
 }
 
 function ProductionCard({ item }: { item: ProductionBoardItem }) {
-  const { job, lead, quote, payments } = item;
+  const { job, lead, quote, payments, proofAssets = [] } = item;
   const summary = getProductionSummary(job, quote, payments);
 
   return (
@@ -59,6 +60,7 @@ function ProductionCard({ item }: { item: ProductionBoardItem }) {
         <span>Balance: <b className="text-white">{currency(summary.payment.balanceRemaining)}</b></span>
         <span>Due: <b className="text-white">{formatDate(job.dueDate)}</b></span>
         <span className="col-span-2">Install: <b className="text-white">{formatDate(job.installationDate)}</b></span>
+        <span className="col-span-2">Proof: <b className="text-white">{proofAssets.length ? proofAssets.map((proof) => proof.status).join(", ") : "Not started"}</b></span>
       </div>
 
       <p className="mt-4 rounded-lg border border-white/10 bg-white/[0.04] p-3 text-sm leading-6 text-slate-200">{summary.suggestedNextAction}</p>
@@ -123,3 +125,4 @@ export function ProductionBoard({ items, source = "database" }: ProductionBoardP
     </div>
   );
 }
+

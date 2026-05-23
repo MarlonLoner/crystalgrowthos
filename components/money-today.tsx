@@ -6,9 +6,10 @@ import { useMemo, useState } from "react";
 import { getAiRevenueBrief, getMoneyActionItems, getRevenueMetrics, Priority } from "@/lib/revenue-intelligence";
 import { getMockupWorkflowItems } from "@/lib/mockup-workflow";
 import { Lead, Quote } from "@/lib/mock-data";
-import type { ActivityView, LeadAssetView, PaymentView, ProductionJobView } from "@/lib/db-data";
+import type { ActivityView, LeadAssetView, PaymentView, ProductionJobView, ProofAssetView } from "@/lib/db-data";
 import { getPaymentSummary } from "@/lib/payment-intelligence";
 import { getProductionSummary } from "@/lib/production-intelligence";
+import { getProofSummary } from "@/lib/proof-intelligence";
 import { currency, formatDate } from "@/lib/utils";
 import { WhatsAppAction } from "@/components/whatsapp-action";
 import { ActionButton } from "@/components/action-button";
@@ -31,9 +32,10 @@ type MoneyTodayProps = {
   assets?: LeadAssetView[];
   payments?: PaymentView[];
   productionJobs?: ProductionJobView[];
+  proofAssets?: ProofAssetView[];
 };
 
-export function MoneyToday({ leads = [], quotes = [], activities = [], assets = [], payments = [], productionJobs = [] }: MoneyTodayProps) {
+export function MoneyToday({ leads = [], quotes = [], activities = [], assets = [], payments = [], productionJobs = [], proofAssets = [] }: MoneyTodayProps) {
   const [done, setDone] = useState<string[]>([]);
   const items = useMemo(() => getMoneyActionItems(leads, quotes).filter((item) => !done.includes(item.id)), [leads, quotes, done]);
   const mockupItems = useMemo(() => getMockupWorkflowItems(leads, assets, activities, quotes).filter((item) => !done.includes(`mockup-${item.lead.id}`)), [leads, assets, activities, quotes, done]);
@@ -44,6 +46,13 @@ export function MoneyToday({ leads = [], quotes = [], activities = [], assets = 
     if (!quote || !lead) return null;
     return { job, quote, lead, summary: getProductionSummary(job, quote, payments.filter((payment) => payment.quoteId === quote.id)) };
   }).filter((item): item is NonNullable<typeof item> => item !== null && !["COMPLETED", "CANCELLED"].includes(item.job.status)), [productionJobs, quotes, leads, payments]);
+  const proofItems = useMemo(() => proofAssets.map((proof) => {
+    const lead = leads.find((item) => item.id === proof.leadId);
+    if (!lead || proof.status === "PUBLISHED" || proof.status === "ARCHIVED") return null;
+    const job = productionJobs.find((item) => item.id === proof.productionJobId) ?? null;
+    const quote = proof.quoteId ? quotes.find((item) => item.id === proof.quoteId) ?? null : null;
+    return { proof, lead, job, quote, summary: getProofSummary({ lead, job, quote, proofAssets: [proof] }) };
+  }).filter((item): item is NonNullable<typeof item> => item !== null), [proofAssets, leads, productionJobs, quotes]);
   const metrics = getRevenueMetrics(leads, quotes, activities);
   const brief = getAiRevenueBrief(leads, quotes);
 
@@ -108,6 +117,32 @@ export function MoneyToday({ leads = [], quotes = [], activities = [], assets = 
             </div>
           ))}
           {productionItems.length === 0 ? <p className="text-sm text-mercury">No production jobs need action right now.</p> : null}
+        </div>
+      </Panel>
+      <Panel>
+        <SectionHeading
+          eyebrow="Proof Actions"
+          title={`${proofItems.length} review and content actions`}
+          description="Completed work that can become reviews, testimonials, referrals, before/after posts, or case studies."
+        />
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+          {proofItems.map(({ proof, lead, summary }) => (
+            <div key={proof.id} className="rounded-lg border border-white/10 bg-obsidian/60 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-black text-white">{proof.title}</p>
+                  <p className="mt-1 text-xs text-mercury">{lead.businessName} - {lead.name}</p>
+                </div>
+                <span className="rounded-lg bg-aurum/10 px-2 py-1 text-xs font-black text-aurum">{proof.status}</span>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-200">{summary.suggestedNextAction}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/leads/${lead.id}`}>View Lead</Link>
+                <Link className="rounded-lg bg-aurum px-3 py-2 text-xs font-black text-obsidian" href="/proof">Open Proof Engine</Link>
+              </div>
+            </div>
+          ))}
+          {proofItems.length === 0 ? <p className="text-sm text-mercury">No review or content actions waiting right now.</p> : null}
         </div>
       </Panel>
       <Panel className="border-aurum/20 bg-aurum/10">
@@ -203,6 +238,8 @@ export function MoneyToday({ leads = [], quotes = [], activities = [], assets = 
     </div>
   );
 }
+
+
 
 
 

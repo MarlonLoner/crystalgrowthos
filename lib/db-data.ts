@@ -1,5 +1,5 @@
 import "server-only";
-import { Lead as PrismaLead, Quote as PrismaQuote, QuoteLineItem as PrismaQuoteLineItem, FollowUpActivity as PrismaActivity, LeadAsset as PrismaLeadAsset, Payment as PrismaPayment, ProductionJob as PrismaProductionJob } from "@prisma/client";
+import { Lead as PrismaLead, Quote as PrismaQuote, QuoteLineItem as PrismaQuoteLineItem, FollowUpActivity as PrismaActivity, LeadAsset as PrismaLeadAsset, Payment as PrismaPayment, ProductionJob as PrismaProductionJob, ProofAsset as PrismaProofAsset } from "@prisma/client";
 import { followUpActivities, Lead, leads, Quote, quotes } from "@/lib/mock-data";
 import { prisma } from "@/lib/prisma";
 import { suggestQuoteLineItems } from "@/lib/quote-suggestions";
@@ -64,6 +64,19 @@ export type ProductionJobView = {
   updatedAt: string;
 };
 
+export type ProofAssetView = {
+  id: string;
+  leadId: string;
+  quoteId: string | null;
+  productionJobId: string | null;
+  type: string;
+  title: string;
+  content: string;
+  url: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+};
 export type LeadAssetView = {
   id: string;
   leadId: string;
@@ -148,6 +161,21 @@ function mapProductionJob(job: PrismaProductionJob): ProductionJobView {
   };
 }
 
+function mapProofAsset(asset: PrismaProofAsset): ProofAssetView {
+  return {
+    id: asset.id,
+    leadId: asset.leadId,
+    quoteId: asset.quoteId,
+    productionJobId: asset.productionJobId,
+    type: asset.type,
+    title: asset.title,
+    content: asset.content ?? "",
+    url: asset.url ?? "",
+    status: asset.status,
+    createdAt: iso(asset.createdAt),
+    updatedAt: iso(asset.updatedAt)
+  };
+}
 function mapPayment(payment: PrismaPayment): PaymentView {
   return {
     id: payment.id,
@@ -216,7 +244,8 @@ export async function getLeadDetailForPage(id: string) {
         activities: { orderBy: { createdAt: "desc" } },
         assets: { orderBy: { createdAt: "desc" } },
         payments: { orderBy: { paidAt: "desc" } },
-        productionJobs: { orderBy: { updatedAt: "desc" } }
+        productionJobs: { orderBy: { updatedAt: "desc" } },
+        proofAssets: { orderBy: { updatedAt: "desc" } }
       }
     });
 
@@ -227,7 +256,8 @@ export async function getLeadDetailForPage(id: string) {
         activities: dbLead.activities.map(mapActivity),
         assets: dbLead.assets.map(mapAsset),
         payments: dbLead.payments.map(mapPayment),
-        productionJobs: dbLead.productionJobs.map(mapProductionJob)
+        productionJobs: dbLead.productionJobs.map(mapProductionJob),
+        proofAssets: dbLead.proofAssets.map(mapProofAsset)
       };
     }
   } catch {}
@@ -240,7 +270,8 @@ export async function getLeadDetailForPage(id: string) {
     activities: followUpActivities.filter((activity) => activity.leadId === id),
     assets: [],
     payments: [],
-    productionJobs: []
+    productionJobs: [],
+    proofAssets: []
   };
 }
 
@@ -295,6 +326,7 @@ export async function getQuoteCreateData(leadId?: string | null) {
             assets: { orderBy: { createdAt: "desc" } },
         payments: { orderBy: { paidAt: "desc" } },
         productionJobs: { orderBy: { updatedAt: "desc" } },
+        proofAssets: { orderBy: { updatedAt: "desc" } },
             activities: { orderBy: { createdAt: "desc" }, take: 8 },
             quotes: { include: { lineItems: true }, orderBy: { createdAt: "desc" } }
           }
@@ -356,13 +388,14 @@ export async function getQuotesForPage() {
 
 export async function getRevenueSourceData() {
   try {
-    const [dbLeads, dbQuotes, dbActivities, dbAssets, dbPayments, dbProductionJobs] = await Promise.all([
+    const [dbLeads, dbQuotes, dbActivities, dbAssets, dbPayments, dbProductionJobs, dbProofAssets] = await Promise.all([
       prisma.lead.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.quote.findMany({ include: { lineItems: true }, orderBy: { createdAt: "desc" } }),
       prisma.followUpActivity.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.leadAsset.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.payment.findMany({ orderBy: { paidAt: "desc" } }),
-      prisma.productionJob.findMany({ orderBy: { updatedAt: "desc" } })
+      prisma.productionJob.findMany({ orderBy: { updatedAt: "desc" } }),
+      prisma.proofAsset.findMany({ orderBy: { updatedAt: "desc" } })
     ]);
 
     return {
@@ -372,11 +405,12 @@ export async function getRevenueSourceData() {
       assets: dbAssets.map(mapAsset),
       payments: dbPayments.map(mapPayment),
       productionJobs: dbProductionJobs.map(mapProductionJob),
+      proofAssets: dbProofAssets.map(mapProofAsset),
       source: "database" as const
     };
   } catch (error) {
     console.error("[revenue-source] database lookup failed", error);
-    return { leads, quotes, activities: followUpActivities, assets: [], payments: [], productionJobs: [], source: "fallback" as const };
+    return { leads, quotes, activities: followUpActivities, assets: [], payments: [], productionJobs: [], proofAssets: [], source: "fallback" as const };
   }
 }
 
@@ -393,7 +427,8 @@ export async function getMoneyTodayPageData() {
     activities: data.activities,
     assets: data.assets,
     payments: data.payments,
-    productionJobs: data.productionJobs
+    productionJobs: data.productionJobs,
+    proofAssets: data.proofAssets
   };
 }
 
@@ -413,6 +448,7 @@ export async function getMockupBoardData() {
         assets: { orderBy: { createdAt: "desc" } },
         payments: { orderBy: { paidAt: "desc" } },
         productionJobs: { orderBy: { updatedAt: "desc" } },
+        proofAssets: { orderBy: { updatedAt: "desc" } },
         activities: { orderBy: { createdAt: "desc" } },
         quotes: { include: { lineItems: true }, orderBy: { createdAt: "desc" } }
       }
@@ -546,7 +582,8 @@ export async function getProductionBoardData() {
       orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
       include: {
         lead: true,
-        quote: { include: { lineItems: true, payments: { orderBy: { paidAt: "desc" } } } }
+        quote: { include: { lineItems: true, payments: { orderBy: { paidAt: "desc" } }, proofAssets: { orderBy: { updatedAt: "desc" } } } },
+        proofAssets: { orderBy: { updatedAt: "desc" } }
       }
     });
 
@@ -556,7 +593,8 @@ export async function getProductionBoardData() {
         job: mapProductionJob(job),
         lead: mapLead(job.lead),
         quote: mapQuote(job.quote),
-        payments: job.quote.payments.map(mapPayment)
+        payments: job.quote.payments.map(mapPayment),
+        proofAssets: [...job.proofAssets, ...job.quote.proofAssets].map(mapProofAsset)
       }))
     };
   } catch (error) {
@@ -565,3 +603,32 @@ export async function getProductionBoardData() {
   }
 }
 
+
+
+
+
+export async function getProofBoardData() {
+  try {
+    const proofAssets = await prisma.proofAsset.findMany({
+      orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
+      include: {
+        lead: true,
+        quote: { include: { lineItems: true } },
+        productionJob: true
+      }
+    });
+
+    return {
+      source: "database" as const,
+      items: proofAssets.map((asset) => ({
+        proof: mapProofAsset(asset),
+        lead: mapLead(asset.lead),
+        quote: asset.quote ? mapQuote(asset.quote) : null,
+        productionJob: asset.productionJob ? mapProductionJob(asset.productionJob) : null
+      }))
+    };
+  } catch (error) {
+    console.error("[proof-board] database lookup failed", error);
+    return { source: "fallback" as const, items: [] };
+  }
+}
