@@ -4,7 +4,7 @@ import { ActionButton } from "@/components/action-button";
 import { WhatsAppAction } from "@/components/whatsapp-action";
 import { WhatsAppScriptGenerator } from "@/components/whatsapp-script-generator";
 import { buttonClass, Panel, SectionHeading } from "@/components/ui";
-import { ActivityView, LeadAssetView } from "@/lib/db-data";
+import { ActivityView, LeadAssetView, PaymentView } from "@/lib/db-data";
 import { Lead, Quote, quoteFinalTotal } from "@/lib/mock-data";
 import { inferMockupWorkflow, isMockupRelatedLead } from "@/lib/mockup-workflow";
 import { generateWhatsAppScript } from "@/lib/scripts";
@@ -28,16 +28,20 @@ export function LeadDetail({
   lead,
   relatedQuotes,
   activities,
-  assets = []
+  assets = [],
+  payments = []
 }: {
   lead: Lead;
   relatedQuotes: Quote[];
   activities: ActivityView[];
   assets?: LeadAssetView[];
+  payments?: PaymentView[];
 }) {
   const message = generateWhatsAppScript(lead.status === "Lost" ? "dead-lead-revival" : lead.status === "Won" ? "review-request" : "quote-follow-up", lead);
   const mockupWorkflow = inferMockupWorkflow(lead, assets, activities, relatedQuotes);
   const showMockupWorkflow = isMockupRelatedLead(lead) || assets.length > 0;
+  const paidTotal = payments.reduce((sum, payment) => sum + payment.amount, 0);
+  const quoteTotal = relatedQuotes.reduce((sum, quote) => sum + quoteFinalTotal(quote), 0);
 
   return (
     <div className="space-y-6">
@@ -139,7 +143,18 @@ export function LeadDetail({
             </div>
           </Panel>
 
-          <Panel>
+                    <Panel>
+            <SectionHeading eyebrow="Payments" title="Payment history" description="Payments linked to this lead and related quotes." />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-white/10 bg-obsidian/60 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-mercury">Paid total</p><p className="mt-2 text-2xl font-black text-white">{currency(paidTotal)}</p></div>
+              <div className="rounded-lg border border-white/10 bg-obsidian/60 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-mercury">Outstanding balance</p><p className="mt-2 text-2xl font-black text-white">{currency(Math.max(quoteTotal - paidTotal, 0))}</p></div>
+            </div>
+            <div className="mt-4 space-y-2">
+              {payments.map((payment) => <div key={payment.id} className="rounded-lg border border-white/10 bg-obsidian/60 p-3 text-sm text-slate-200"><span className="font-black text-white">{currency(payment.amount)}</span> via {payment.method.replaceAll("_", " ")} on {formatDate(payment.paidAt)} {payment.reference ? `- ${payment.reference}` : ""}</div>)}
+              {payments.length === 0 ? <p className="text-sm text-mercury">No payments recorded yet.</p> : null}
+            </div>
+          </Panel>
+<Panel>
             <SectionHeading eyebrow="Activity Timeline" title="Follow-up activities" description="Real activity records for this lead, including pending, completed, and overdue work." />
             <div className="space-y-3">
               {activities.length ? activities.map((activity) => {

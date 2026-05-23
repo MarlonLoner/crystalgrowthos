@@ -1,4 +1,4 @@
-﻿import { notFound } from "next/navigation";
+import { notFound } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { QuotePreview } from "@/components/quote-preview";
 import { getQuoteDetailForPage } from "@/lib/db-data";
@@ -27,7 +27,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
           </div>
         </div>
       </div>
-      <QuotePreview quote={data.quote} lead={data.lead} />
+      <QuotePreview quote={data.quote} lead={data.lead} payments={data.payments} />
     </DashboardShell>
   );
 }

@@ -1,6 +1,7 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { getRevenueMetrics, RevenueActivity } from "@/lib/revenue-intelligence";
-import { Lead, Quote } from "@/lib/mock-data";
+import { Lead, Quote, quoteFinalTotal } from "@/lib/mock-data";
+import type { PaymentView } from "@/lib/db-data";
 import { currency } from "@/lib/utils";
 import { Panel, SectionHeading } from "@/components/ui";
 
@@ -8,8 +9,12 @@ function percent(value: number) {
   return `${Math.round(value * 100)}%`;
 }
 
-export function RevenueReport({ leads, quotes, activities }: { leads: Lead[]; quotes: Quote[]; activities: RevenueActivity[] }) {
+export function RevenueReport({ leads, quotes, activities, payments = [] }: { leads: Lead[]; quotes: Quote[]; activities: RevenueActivity[]; payments?: PaymentView[] }) {
   const metrics = getRevenueMetrics(leads, quotes, activities);
+  const totalQuotedValue = quotes.reduce((sum, quote) => sum + quoteFinalTotal(quote), 0);
+  const totalPaidAmount = payments.reduce((sum, payment) => sum + payment.amount, 0);
+  const partiallyPaidQuoteIds = new Set(payments.map((payment) => payment.quoteId).filter((quoteId) => { const quote = quotes.find((item) => item.id === quoteId); if (!quote) return false; const paid = payments.filter((payment) => payment.quoteId === quoteId).reduce((sum, payment) => sum + payment.amount, 0); return paid > 0 && paid < quoteFinalTotal(quote); }));
+  const fullyPaidQuotes = quotes.filter((quote) => payments.filter((payment) => payment.quoteId === quote.id).reduce((sum, payment) => sum + payment.amount, 0) >= quoteFinalTotal(quote));
   const cards = [
     ["Total leads", metrics.totalLeads.toString()],
     ["New leads this month", metrics.newLeadsThisMonth.toString()],
@@ -26,7 +31,13 @@ export function RevenueReport({ leads, quotes, activities }: { leads: Lead[]; qu
     ["Quote acceptance rate", percent(metrics.quoteAcceptanceRate)],
     ["Quote-to-win rate", percent(metrics.quoteToWinRate)],
     ["Best lead source", `${metrics.bestLeadSource.name} (${metrics.bestLeadSource.count})`],
-    ["Best service category", `${metrics.bestServiceCategory.name} (${metrics.bestServiceCategory.count})`]
+    ["Best service category", `${metrics.bestServiceCategory.name} (${metrics.bestServiceCategory.count})`],
+    ["Total quoted value", currency(totalQuotedValue)],
+    ["Total paid amount", currency(totalPaidAmount)],
+    ["Outstanding balance", currency(Math.max(totalQuotedValue - totalPaidAmount, 0))],
+    ["Deposits received", payments.length.toString()],
+    ["Fully paid quotes", fullyPaidQuotes.length.toString()],
+    ["Partially paid quotes", partiallyPaidQuoteIds.size.toString()]
   ];
 
   return (

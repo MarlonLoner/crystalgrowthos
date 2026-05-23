@@ -10,5 +10,5 @@ export default async function QuotePrintPage({ params }: { params: Promise<{ id:
 
   if (!data) notFound();
 
-  return <QuotePrintView quote={data.quote} lead={data.lead} internal />;
+  return <QuotePrintView quote={data.quote} lead={data.lead} payments={data.payments} internal />;
 }

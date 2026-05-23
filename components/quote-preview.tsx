@@ -4,8 +4,10 @@ import { Lead, Quote, quoteFinalTotal, quoteSubtotal } from "@/lib/mock-data";
 import { currency, formatDate } from "@/lib/utils";
 import { buttonClass, Panel } from "@/components/ui";
 import { QuoteSendActions } from "@/components/quote-send-actions";
+import { QuotePaymentSection } from "@/components/quote-payment-section";
+import type { PaymentView } from "@/lib/db-data";
 
-export function QuotePreview({ quote, lead }: { quote: Quote; lead?: Lead }) {
+export function QuotePreview({ quote, lead, payments = [] }: { quote: Quote; lead?: Lead; payments?: PaymentView[] }) {
   return (
     <Panel className="bg-white text-slate-950">
       <div className="flex flex-col gap-4 border-b border-slate-200 pb-6 md:flex-row md:items-start md:justify-between">
@@ -57,6 +59,7 @@ export function QuotePreview({ quote, lead }: { quote: Quote; lead?: Lead }) {
       </div>
 
       {lead ? <QuoteSendActions quote={quote} lead={lead} /> : null}
+      <QuotePaymentSection quote={quote} payments={payments} />
 
       <div className="mt-8 flex flex-wrap gap-3 print:hidden">
         <Link className="inline-flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-black text-white" href={`/quotes/${quote.id}/print`}><Printer size={16} /> Open Print View</Link>

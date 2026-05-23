@@ -41,6 +41,7 @@ model Lead {
   activities          FollowUpActivity[]
   quotes              Quote[]
   assets              LeadAsset[]
+  payments            Payment[]
 }
 
 model ContentBrief {
@@ -110,6 +111,7 @@ model Quote {
   expiryDate      DateTime
   lead            Lead            @relation(fields: [leadId], references: [id], onDelete: Cascade)
   lineItems       QuoteLineItem[]
+  payments        Payment[]
 }
 
 model QuoteLineItem {
@@ -123,6 +125,19 @@ model QuoteLineItem {
   quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
 }
 
+model Payment {
+  id        String        @id @default(cuid())
+  quoteId   String
+  leadId    String?
+  amount    Decimal       @db.Decimal(12, 2)
+  method    PaymentMethod
+  reference String?
+  notes     String?
+  paidAt    DateTime
+  createdAt DateTime      @default(now())
+  quote     Quote         @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  lead      Lead?         @relation(fields: [leadId], references: [id], onDelete: SetNull)
+}
 model FollowUpActivity {
   id          String               @id @default(cuid())
   leadId      String
@@ -178,6 +193,14 @@ enum FollowUpActivityType {
   NOTE
 }
 
+enum PaymentMethod {
+  CASH
+  ECOCASH
+  BANK_TRANSFER
+  SWIPE
+  USD_CASH
+  OTHER
+}
 enum LeadAssetType {
   SHOPFRONT_IMAGE
   LOGO

@@ -1,4 +1,4 @@
-﻿import { DashboardShell } from "@/components/dashboard-shell";
+import { DashboardShell } from "@/components/dashboard-shell";
 import { RevenueReport } from "@/components/revenue-report";
 import { getRevenueSourceData } from "@/lib/db-data";
 
@@ -9,7 +9,7 @@ export default async function RevenueReportPage() {
 
   return (
     <DashboardShell>
-      <RevenueReport leads={data.leads} quotes={data.quotes} activities={data.activities} />
+      <RevenueReport leads={data.leads} quotes={data.quotes} activities={data.activities} payments={data.payments} />
     </DashboardShell>
   );
 }

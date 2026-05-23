@@ -9,7 +9,7 @@ export default async function MoneyTodayPage() {
 
   return (
     <DashboardShell>
-      <MoneyToday leads={data.leads} quotes={data.quotes} activities={data.activities} assets={data.assets} />
+      <MoneyToday leads={data.leads} quotes={data.quotes} activities={data.activities} assets={data.assets} payments={data.payments} />
     </DashboardShell>
   );
 }

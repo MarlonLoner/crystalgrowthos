@@ -6,7 +6,8 @@ import { useMemo, useState } from "react";
 import { getAiRevenueBrief, getMoneyActionItems, getRevenueMetrics, Priority } from "@/lib/revenue-intelligence";
 import { getMockupWorkflowItems } from "@/lib/mockup-workflow";
 import { Lead, Quote } from "@/lib/mock-data";
-import type { ActivityView, LeadAssetView } from "@/lib/db-data";
+import type { ActivityView, LeadAssetView, PaymentView } from "@/lib/db-data";
+import { getPaymentSummary } from "@/lib/payment-intelligence";
 import { currency, formatDate } from "@/lib/utils";
 import { WhatsAppAction } from "@/components/whatsapp-action";
 import { ActionButton } from "@/components/action-button";
@@ -27,12 +28,14 @@ type MoneyTodayProps = {
   quotes?: Quote[];
   activities?: ActivityView[];
   assets?: LeadAssetView[];
+  payments?: PaymentView[];
 };
 
-export function MoneyToday({ leads = [], quotes = [], activities = [], assets = [] }: MoneyTodayProps) {
+export function MoneyToday({ leads = [], quotes = [], activities = [], assets = [], payments = [] }: MoneyTodayProps) {
   const [done, setDone] = useState<string[]>([]);
   const items = useMemo(() => getMoneyActionItems(leads, quotes).filter((item) => !done.includes(item.id)), [leads, quotes, done]);
   const mockupItems = useMemo(() => getMockupWorkflowItems(leads, assets, activities, quotes).filter((item) => !done.includes(`mockup-${item.lead.id}`)), [leads, assets, activities, quotes, done]);
+  const paymentItems = useMemo(() => quotes.map((quote) => ({ quote, lead: leads.find((lead) => lead.id === quote.leadId), summary: getPaymentSummary(quote, payments.filter((payment) => payment.quoteId === quote.id)) })).filter((item) => item.lead && item.summary.paymentStatus !== "FULLY_PAID" && item.summary.paymentStatus !== "OVERPAID"), [quotes, leads, payments]);
   const metrics = getRevenueMetrics(leads, quotes, activities);
   const brief = getAiRevenueBrief(leads, quotes);
 

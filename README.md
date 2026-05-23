@@ -172,6 +172,26 @@ Manual test:
 7. Open `/api/debug/mockups` to inspect inferred status, assets, activities, and related quotes.
 
 
+
+## Deposit and Payment Tracking
+
+Quotes now support payment tracking with deposit logic. Use the payment section on a quote detail page to record USD payments by cash, EcoCash, bank transfer, swipe, USD cash, or other method.
+
+Crystal Growth OS calculates quote total, deposit required at 60%, amount paid, balance remaining, payment status, and the next suggested payment action. Recording a deposit can move the quote to Accepted, mark the lead as Won, create a Payment recorded activity, and create pending Begin production and Collect balance tasks. Recording the full balance marks the quote Paid.
+
+Manual test:
+1. Open a sent quote.
+2. Record a deposit below the full quote value.
+3. Confirm payment history appears on the quote.
+4. Confirm lead detail shows payment history and outstanding balance.
+5. Confirm Money Today shows Begin production or Collect balance.
+6. Record the remaining balance and confirm the quote becomes Paid.
+7. Open `/api/debug/payments/[quoteId]` to inspect payments and payment intelligence.
+
+Migration:
+- Local development: `npx prisma migrate dev`
+- Production/Vercel database: `npx prisma migrate deploy`
+- If using Neon SQL editor manually, run `prisma/migrations/202605230001_add_payments/migration.sql`.
 ## Quote Print and Send Workflow
 
 Quote detail pages include a send workflow with a generated WhatsApp message, a Mark Quote Sent action, and links to a print-friendly quote view. Open `/quotes/[id]/print` to view a clean white quote layout without dashboard navigation, then use the browser print dialog to save as PDF.

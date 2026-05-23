@@ -1,6 +1,6 @@
 "use server";
 
-import { FollowUpActivityType, LeadStatus, Prisma, QuoteStatus } from "@prisma/client";
+import { FollowUpActivityType, LeadStatus, PaymentMethod, Prisma, QuoteStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -920,6 +920,92 @@ export async function createQuoteAction(formData: FormData) {
   revalidatePath("/money-today");
   revalidatePath("/reports/revenue");
   redirect(`/quotes/${quote.id}`);
+}
+function normalizePaymentMethod(value: string) {
+  const method = value.trim().toUpperCase().replaceAll(" ", "_").replaceAll("-", "_");
+  return (PaymentMethod as Record<string, PaymentMethod>)[method] ?? PaymentMethod.OTHER;
+}
+
+export async function recordPaymentAction(formData: FormData) {
+  const quoteId = requiredString(formData, "quoteId");
+  const amount = Number(requiredString(formData, "amount"));
+  if (!quoteId) throw new Error("Quote is required to record payment.");
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error("Payment amount must be greater than zero.");
+
+  const quote = await prisma.quote.findUnique({
+    where: { id: quoteId },
+    include: { lead: true, payments: true }
+  });
+  if (!quote) throw new Error(`Quote not found: ${quoteId}`);
+
+  const now = new Date();
+  const paidAt = optionalDate(formData.get("paidAt")) ?? now;
+  const method = normalizePaymentMethod(requiredString(formData, "method"));
+  const reference = requiredString(formData, "reference");
+  const notes = requiredString(formData, "notes");
+  const payment = await prisma.payment.create({
+    data: {
+      quoteId: quote.id,
+      leadId: quote.leadId,
+      amount: String(amount),
+      method,
+      reference: reference || null,
+      notes: notes || null,
+      paidAt
+    },
+    select: { id: true, amount: true, method: true, reference: true }
+  });
+
+  const previousPaid = quote.payments.reduce((sum, item) => sum + Number(item.amount), 0);
+  const amountPaid = previousPaid + amount;
+  const finalTotal = Number(quote.finalTotal);
+  const depositRequired = finalTotal * 0.6;
+  const fullPaid = amountPaid >= finalTotal;
+  const depositPaid = amountPaid >= depositRequired;
+  const next = tomorrow();
+
+  const quoteStatus = fullPaid ? QuoteStatus.PAID : depositPaid ? QuoteStatus.ACCEPTED : quote.status;
+  await prisma.quote.update({ where: { id: quote.id }, data: { status: quoteStatus } });
+  if (depositPaid || fullPaid) {
+    await prisma.lead.update({ where: { id: quote.leadId }, data: { status: LeadStatus.WON } });
+  }
+
+  await prisma.followUpActivity.create({
+    data: {
+      leadId: quote.leadId,
+      type: FollowUpActivityType.NOTE,
+      title: "Payment recorded",
+      note: `Payment recorded: $${amount.toFixed(2)} via ${method}${reference ? `, reference ${reference}` : ""}.${notes ? ` Notes: ${notes}` : ""}`,
+      completedAt: now
+    }
+  });
+
+  if (depositPaid && !fullPaid) {
+    await prisma.followUpActivity.createMany({
+      data: [
+        {
+          leadId: quote.leadId,
+          type: FollowUpActivityType.NOTE,
+          title: "Begin production",
+          note: "Deposit confirmed. Begin production workflow.",
+          dueAt: now,
+          completedAt: null
+        },
+        {
+          leadId: quote.leadId,
+          type: FollowUpActivityType.WHATSAPP,
+          title: "Collect balance",
+          note: "Balance remains after deposit/payment.",
+          dueAt: next,
+          completedAt: null
+        }
+      ]
+    });
+  }
+
+  revalidateSalesRoutes(quote.id, quote.leadId, quote.id);
+  revalidatePath(`/q/${quote.quoteNumber}`);
+  console.log("[payment-action] payment recorded", { paymentId: payment.id, quoteStatus });
 }
 export async function updateQuoteStatusAction(quoteId: string, statusValue: string) {
   console.log("[quote-action] updateQuoteStatusAction called", { quoteId, statusValue });

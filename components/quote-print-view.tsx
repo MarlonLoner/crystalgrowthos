@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { PrintQuoteButton } from "@/components/print-quote-button";
 import { Lead, Quote, quoteFinalTotal, quoteSubtotal } from "@/lib/mock-data";
+import type { PaymentView } from "@/lib/db-data";
+import { getPaymentSummary } from "@/lib/payment-intelligence";
 import { currency, formatDate } from "@/lib/utils";
 
-export function QuotePrintView({ quote, lead, internal = false }: { quote: Quote; lead?: Lead; internal?: boolean }) {
+export function QuotePrintView({ quote, lead, payments = [], internal = false }: { quote: Quote; lead?: Lead; payments?: PaymentView[]; internal?: boolean }) {
+  const paymentSummary = getPaymentSummary(quote, payments);
   return (
     <main className="min-h-screen bg-white px-6 py-8 text-slate-950 print:px-0 print:py-0">
       <div className="mx-auto max-w-4xl bg-white print:max-w-none">
@@ -69,6 +72,9 @@ export function QuotePrintView({ quote, lead, internal = false }: { quote: Quote
             <div className="flex justify-between"><span>Subtotal</span><span>{currency(quoteSubtotal(quote))}</span></div>
             <div className="flex justify-between"><span>Discount</span><span>{currency(quote.discount)}</span></div>
             <div className="flex justify-between border-t border-slate-300 pt-3 text-2xl font-black"><span>Final total</span><span>{currency(quoteFinalTotal(quote))}</span></div>
+            <div className="flex justify-between"><span>Deposit required ({paymentSummary.depositPercentage}%)</span><span>{currency(paymentSummary.depositRequiredAmount)}</span></div>
+            {internal ? <div className="flex justify-between"><span>Amount paid</span><span>{currency(paymentSummary.amountPaid)}</span></div> : null}
+            {internal ? <div className="flex justify-between"><span>Balance remaining</span><span>{currency(paymentSummary.balanceRemaining)}</span></div> : null}
           </div>
         </section>
 
