@@ -710,30 +710,75 @@ async function ensureLeadForMockupAction(leadId: string) {
 export async function markMockupInDesignAction(leadId: string) {
   await ensureLeadForMockupAction(leadId);
   const now = new Date();
+  const next = tomorrow();
   const activity = await prisma.followUpActivity.create({
-    data: { leadId, type: FollowUpActivityType.NOTE, title: "Mockup in design", note: "Shopfront mockup has been moved into design.", completedAt: now },
+    data: {
+      leadId,
+      type: FollowUpActivityType.NOTE,
+      title: "Mockup in design",
+      note: "Shopfront mockup has been moved into design.",
+      completedAt: now
+    },
+    select: { id: true }
+  });
+  const internalTask = await prisma.followUpActivity.create({
+    data: {
+      leadId,
+      type: FollowUpActivityType.NOTE,
+      title: "Prepare and send mockup",
+      note: "Prepare the shopfront mockup and send it to the client.",
+      dueAt: next,
+      completedAt: null
+    },
     select: { id: true }
   });
   revalidateMockupRoutes(leadId);
-  return { ok: true, message: "Mockup moved into design", activityId: activity.id };
+  return { ok: true, message: "Mockup moved into design and internal task created", activityId: activity.id, internalTaskId: internalTask.id };
 }
 
 export async function markMockupSentAction(leadId: string) {
   await ensureLeadForMockupAction(leadId);
   const now = new Date();
   const next = tomorrow();
+  const completedInternalTasks = await prisma.followUpActivity.updateMany({
+    where: {
+      leadId,
+      title: "Prepare and send mockup",
+      completedAt: null
+    },
+    data: { completedAt: now }
+  });
   const sent = await prisma.followUpActivity.create({
-    data: { leadId, type: FollowUpActivityType.WHATSAPP, title: "Mockup sent", note: "Mockup was sent to the prospect.", completedAt: now },
+    data: {
+      leadId,
+      type: FollowUpActivityType.WHATSAPP,
+      title: "Mockup sent",
+      note: "Mockup was sent to the prospect.",
+      completedAt: now
+    },
     select: { id: true }
   });
   const followUp = await prisma.followUpActivity.create({
-    data: { leadId, type: FollowUpActivityType.WHATSAPP, title: "Follow up on mockup", note: "Check if the client likes the mockup and wants a quote.", dueAt: next, completedAt: null },
+    data: {
+      leadId,
+      type: FollowUpActivityType.WHATSAPP,
+      title: "Follow up on mockup",
+      note: "Check if the client likes the mockup and wants a quote.",
+      dueAt: next,
+      completedAt: null
+    },
     select: { id: true }
   });
+  await prisma.lead.update({ where: { id: leadId }, data: { nextFollowUpAt: next, nextFollowUpDate: next } });
   revalidateMockupRoutes(leadId);
-  return { ok: true, message: "Mockup sent and follow-up scheduled", activityId: sent.id, followUpActivityId: followUp.id };
+  return {
+    ok: true,
+    message: "Mockup sent, internal task completed, and follow-up scheduled",
+    activityId: sent.id,
+    followUpActivityId: followUp.id,
+    completedInternalTaskCount: completedInternalTasks.count
+  };
 }
-
 export async function markReadyForQuoteAction(leadId: string) {
   const lead = await ensureLeadForMockupAction(leadId);
   const now = new Date();
@@ -760,6 +805,7 @@ export async function requestMissingAssetsAction(leadId: string) {
     data: { leadId, type: FollowUpActivityType.WHATSAPP, title: "Follow up on missing assets", note: "Check if the prospect has sent the missing logo or shopfront photo.", dueAt: next, completedAt: null },
     select: { id: true }
   });
+  await prisma.lead.update({ where: { id: leadId }, data: { nextFollowUpAt: next, nextFollowUpDate: next } });
   revalidateMockupRoutes(leadId);
   return { ok: true, message: "Missing assets request logged", activityId: requested.id, followUpActivityId: followUp.id };
 }

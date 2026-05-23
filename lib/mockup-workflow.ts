@@ -71,6 +71,8 @@ export function inferMockupWorkflow(lead: Lead, assets: LeadAssetView[] = [], ac
   ].filter(Boolean);
   const hasInDesign = relatedActivities.some((activity) => activityIncludes(activity, "Mockup in design"));
   const hasMockupSent = relatedActivities.some((activity) => activityIncludes(activity, "Mockup sent"));
+  const pendingPrepareTask = relatedActivities.find((activity) => activity.title === "Prepare and send mockup" && !activity.completedAt);
+  const pendingMockupFollowUp = relatedActivities.find((activity) => activity.title === "Follow up on mockup" && !activity.completedAt);
   const hasReadyForQuote = relatedActivities.some((activity) => activityIncludes(activity, "Ready for quote"));
   const dormant = lead.status === "Lost" || isOlderThanDays(latestActivity?.createdAt ?? lead.createdAt, 21);
 
@@ -92,11 +94,11 @@ export function inferMockupWorkflow(lead: Lead, assets: LeadAssetView[] = [], ac
     scriptType = "quote-after-mockup";
   } else if (hasMockupSent) {
     status = "Mockup Sent";
-    suggestedNextAction = "Follow up on the mockup and ask if they want pricing.";
+    suggestedNextAction = pendingMockupFollowUp ? "Follow up on mockup: check if the client likes it and wants a quote." : "Follow up on the mockup and ask if they want pricing.";
     scriptType = "quote-after-mockup";
   } else if (hasInDesign) {
     status = "In Design";
-    suggestedNextAction = "Finish the mockup and send it to the prospect.";
+    suggestedNextAction = pendingPrepareTask ? "Prepare and send mockup: finish the design and send it to the client." : "Finish the mockup and send it to the prospect.";
     scriptType = "mockup-ready";
   } else if (missingAssets.length > 0) {
     status = "Needs Assets";
