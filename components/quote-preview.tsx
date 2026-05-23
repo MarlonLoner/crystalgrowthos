@@ -5,9 +5,12 @@ import { currency, formatDate } from "@/lib/utils";
 import { buttonClass, Panel } from "@/components/ui";
 import { QuoteSendActions } from "@/components/quote-send-actions";
 import { QuotePaymentSection } from "@/components/quote-payment-section";
-import type { PaymentView } from "@/lib/db-data";
+import type { PaymentView, ProductionJobView } from "@/lib/db-data";
+import { getProductionSummary } from "@/lib/production-intelligence";
 
-export function QuotePreview({ quote, lead, payments = [] }: { quote: Quote; lead?: Lead; payments?: PaymentView[] }) {
+export function QuotePreview({ quote, lead, payments = [], productionJob = null }: { quote: Quote; lead?: Lead; payments?: PaymentView[]; productionJob?: ProductionJobView | null }) {
+  const productionSummary = productionJob ? getProductionSummary(productionJob, quote, payments) : null;
+
   return (
     <Panel className="bg-white text-slate-950">
       <div className="flex flex-col gap-4 border-b border-slate-200 pb-6 md:flex-row md:items-start md:justify-between">
@@ -61,6 +64,18 @@ export function QuotePreview({ quote, lead, payments = [] }: { quote: Quote; lea
       {lead ? <QuoteSendActions quote={quote} lead={lead} /> : null}
       <QuotePaymentSection quote={quote} payments={payments} />
 
+      {productionJob && productionSummary ? (
+        <div className="mt-8 rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Production Status</p>
+              <p className="mt-2 text-lg font-black text-slate-950">{productionSummary.statusLabel}</p>
+              <p className="mt-1 text-sm text-slate-600">{productionSummary.suggestedNextAction}</p>
+            </div>
+            <Link href="/production" className="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white print:hidden">Open Production</Link>
+          </div>
+        </div>
+      ) : null}
       <div className="mt-8 flex flex-wrap gap-3 print:hidden">
         <Link className="inline-flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-black text-white" href={`/quotes/${quote.id}/print`}><Printer size={16} /> Open Print View</Link>
         <Link className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white" href={`/quotes/${quote.id}/print`}><Download size={16} /> Download / Save as PDF</Link>
@@ -70,4 +85,9 @@ export function QuotePreview({ quote, lead, payments = [] }: { quote: Quote; lea
     </Panel>
   );
 }
+
+
+
+
+
 

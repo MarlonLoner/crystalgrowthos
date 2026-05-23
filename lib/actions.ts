@@ -1,6 +1,6 @@
 "use server";
 
-import { FollowUpActivityType, LeadStatus, PaymentMethod, Prisma, QuoteStatus } from "@prisma/client";
+import { FollowUpActivityType, LeadStatus, PaymentMethod, Prisma, ProductionPriority, ProductionStatus, QuoteStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -921,6 +921,121 @@ export async function createQuoteAction(formData: FormData) {
   revalidatePath("/reports/revenue");
   redirect(`/quotes/${quote.id}`);
 }
+function revalidateProductionRoutes(leadId?: string, quoteId?: string) {
+  ["/", "/production", "/money-today", "/leads", "/quotes", "/reports/revenue", "/follow-ups"].forEach((path) => revalidatePath(path));
+  if (leadId) revalidatePath(`/leads/${leadId}`);
+  if (quoteId) revalidatePath(`/quotes/${quoteId}`);
+}
+
+function productionPriorityFromText(text: string) {
+  return /urgent|today|asap|rush|this week/i.test(text) ? ProductionPriority.URGENT : ProductionPriority.NORMAL;
+}
+
+async function createProductionJobForQuote(quote: { id: string; leadId: string; businessName: string; serviceCategory: string; expiryDate: Date; lead?: { notes: string | null } }, now = new Date()) {
+  const existing = await prisma.productionJob.findUnique({ where: { quoteId: quote.id }, select: { id: true } });
+  if (existing) return existing;
+  return prisma.productionJob.create({
+    data: {
+      quoteId: quote.id,
+      leadId: quote.leadId,
+      title: `${quote.serviceCategory} for ${quote.businessName}`,
+      status: ProductionStatus.READY_TO_START,
+      priority: productionPriorityFromText(`${quote.serviceCategory} ${quote.businessName} ${quote.lead?.notes ?? ""}`),
+      dueDate: quote.expiryDate,
+      notes: "Created automatically after deposit/payment threshold was reached."
+    },
+    select: { id: true }
+  });
+}
+async function updateProductionJobStatus(jobId: string, status: ProductionStatus, title: string, note: string, type: FollowUpActivityType = FollowUpActivityType.NOTE, dueAt?: Date | null, extra?: { installationDate?: Date | null; notes?: string | null }) {
+  const job = await prisma.productionJob.update({
+    where: { id: jobId },
+    data: {
+      status,
+      ...(extra?.installationDate !== undefined ? { installationDate: extra.installationDate } : {}),
+      ...(extra?.notes ? { notes: extra.notes } : {})
+    },
+    include: { quote: true, lead: true }
+  });
+  await prisma.followUpActivity.create({
+    data: {
+      leadId: job.leadId,
+      type,
+      title,
+      note,
+      dueAt: dueAt ?? null,
+      completedAt: dueAt ? null : new Date()
+    }
+  });
+  revalidateProductionRoutes(job.leadId, job.quoteId);
+  return { ok: true, message: title, jobId: job.id };
+}
+
+export async function startProductionAction(jobId: string) {
+  return updateProductionJobStatus(jobId, ProductionStatus.DESIGN_ARTWORK, "Production started", "Production work has started. Begin design/artwork stage.");
+}
+
+export async function markDesignArtworkAction(jobId: string) {
+  return updateProductionJobStatus(jobId, ProductionStatus.DESIGN_ARTWORK, "Design / artwork", "Production job is in design/artwork.");
+}
+
+export async function markPrintingFabricationAction(jobId: string) {
+  return updateProductionJobStatus(jobId, ProductionStatus.PRINTING_FABRICATION, "Printing / fabrication", "Production job has moved to printing/fabrication.");
+}
+
+export async function scheduleInstallationAction(formData: FormData) {
+  const jobId = requiredString(formData, "jobId");
+  const installationDate = optionalDate(formData.get("installationDate"));
+  const notes = requiredString(formData, "notes");
+  if (!jobId || !installationDate) throw new Error("Job and installation date are required.");
+  await updateProductionJobStatus(jobId, ProductionStatus.INSTALLATION_SCHEDULED, "Installation scheduled", `Installation scheduled for ${installationDate.toISOString().slice(0, 10)}.${notes ? ` Notes: ${notes}` : ""}`, FollowUpActivityType.NOTE, null, { installationDate, notes });
+}
+
+export async function markInstalledDeliveredAction(jobId: string) {
+  const job = await prisma.productionJob.findUnique({ where: { id: jobId }, include: { quote: { include: { payments: true, lineItems: true } } } });
+  if (!job) throw new Error(`Production job not found: ${jobId}`);
+  const paid = job.quote.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+  const balance = Math.max(Number(job.quote.finalTotal) - paid, 0);
+  const status = balance > 0 ? ProductionStatus.AWAITING_BALANCE : ProductionStatus.INSTALLED_DELIVERED;
+  await updateProductionJobStatus(jobId, status, "Installed / delivered", "Job has been installed or delivered.");
+  if (balance > 0) {
+    await prisma.followUpActivity.create({ data: { leadId: job.leadId, type: FollowUpActivityType.WHATSAPP, title: "Collect balance", note: "Job delivered/installed. Balance remains due.", dueAt: new Date(), completedAt: null } });
+  }
+  revalidateProductionRoutes(job.leadId, job.quoteId);
+  return { ok: true, message: "Installed / delivered", balance };
+}
+
+export async function requestBalanceAction(jobId: string) {
+  const job = await prisma.productionJob.findUnique({ where: { id: jobId } });
+  if (!job) throw new Error(`Production job not found: ${jobId}`);
+  await prisma.productionJob.update({ where: { id: jobId }, data: { status: ProductionStatus.AWAITING_BALANCE } });
+  await prisma.followUpActivity.create({ data: { leadId: job.leadId, type: FollowUpActivityType.WHATSAPP, title: "Collect balance", note: "Job delivered/installed. Balance remains due.", dueAt: new Date(), completedAt: null } });
+  revalidateProductionRoutes(job.leadId, job.quoteId);
+  return { ok: true, message: "Balance requested" };
+}
+
+export async function markProductionCompletedAction(jobId: string) {
+  const result = await updateProductionJobStatus(jobId, ProductionStatus.COMPLETED, "Production completed", "Production job has been completed.");
+  const job = await prisma.productionJob.findUnique({ where: { id: jobId } });
+  if (job) {
+    const due = tomorrow();
+    await prisma.followUpActivity.createMany({ data: [
+      { leadId: job.leadId, type: FollowUpActivityType.WHATSAPP, title: "Request review", note: "Ask client for a review/testimonial after completed work.", dueAt: due, completedAt: null },
+      { leadId: job.leadId, type: FollowUpActivityType.NOTE, title: "Create before/after content", note: "Use completed work as marketing content.", dueAt: due, completedAt: null }
+    ] });
+    revalidateProductionRoutes(job.leadId, job.quoteId);
+  }
+  return result;
+}
+
+export async function requestReviewAction(jobId: string) {
+  const job = await prisma.productionJob.findUnique({ where: { id: jobId } });
+  if (!job) throw new Error(`Production job not found: ${jobId}`);
+  await prisma.productionJob.update({ where: { id: jobId }, data: { status: ProductionStatus.REVIEW_REQUESTED } });
+  await prisma.followUpActivity.create({ data: { leadId: job.leadId, type: FollowUpActivityType.WHATSAPP, title: "Request review", note: "Ask client for a review/testimonial after completed work.", dueAt: tomorrow(), completedAt: null } });
+  revalidateProductionRoutes(job.leadId, job.quoteId);
+  return { ok: true, message: "Review requested" };
+}
 function normalizePaymentMethod(value: string) {
   const method = value.trim().toUpperCase().replaceAll(" ", "_").replaceAll("-", "_");
   return (PaymentMethod as Record<string, PaymentMethod>)[method] ?? PaymentMethod.OTHER;
@@ -980,6 +1095,19 @@ export async function recordPaymentAction(formData: FormData) {
     }
   });
 
+  if (depositPaid) {
+    const productionJob = await createProductionJobForQuote(quote, now);
+    await prisma.followUpActivity.create({
+      data: {
+        leadId: quote.leadId,
+        type: FollowUpActivityType.NOTE,
+        title: "Production job created",
+        note: "Deposit confirmed. Production job is ready to start.",
+        completedAt: now
+      }
+    });
+    console.log("[production-action] production job ready", { productionJobId: productionJob.id, quoteId: quote.id });
+  }
   if (depositPaid && !fullPaid) {
     await prisma.followUpActivity.createMany({
       data: [
@@ -1004,6 +1132,7 @@ export async function recordPaymentAction(formData: FormData) {
   }
 
   revalidateSalesRoutes(quote.id, quote.leadId, quote.id);
+  revalidateProductionRoutes(quote.leadId, quote.id);
   revalidatePath(`/q/${quote.quoteNumber}`);
   console.log("[payment-action] payment recorded", { paymentId: payment.id, quoteStatus });
 }
@@ -1180,6 +1309,7 @@ export async function scheduleFollowUpTomorrowAction(quoteId: string) {
     };
   }
 }
+
 
 
 

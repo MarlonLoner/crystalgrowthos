@@ -1,5 +1,5 @@
 import "server-only";
-import { Lead as PrismaLead, Quote as PrismaQuote, QuoteLineItem as PrismaQuoteLineItem, FollowUpActivity as PrismaActivity, LeadAsset as PrismaLeadAsset, Payment as PrismaPayment } from "@prisma/client";
+import { Lead as PrismaLead, Quote as PrismaQuote, QuoteLineItem as PrismaQuoteLineItem, FollowUpActivity as PrismaActivity, LeadAsset as PrismaLeadAsset, Payment as PrismaPayment, ProductionJob as PrismaProductionJob } from "@prisma/client";
 import { followUpActivities, Lead, leads, Quote, quotes } from "@/lib/mock-data";
 import { prisma } from "@/lib/prisma";
 import { suggestQuoteLineItems } from "@/lib/quote-suggestions";
@@ -48,6 +48,20 @@ export type PaymentView = {
   notes: string;
   paidAt: string;
   createdAt: string;
+};
+
+export type ProductionJobView = {
+  id: string;
+  quoteId: string;
+  leadId: string;
+  title: string;
+  status: string;
+  priority: string;
+  dueDate: string | null;
+  installationDate: string | null;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type LeadAssetView = {
@@ -118,6 +132,22 @@ function mapQuote(quote: PrismaQuote & { lineItems: PrismaQuoteLineItem[] }): Qu
   };
 }
 
+function mapProductionJob(job: PrismaProductionJob): ProductionJobView {
+  return {
+    id: job.id,
+    quoteId: job.quoteId,
+    leadId: job.leadId,
+    title: job.title,
+    status: job.status,
+    priority: job.priority,
+    dueDate: job.dueDate ? iso(job.dueDate) : null,
+    installationDate: job.installationDate ? iso(job.installationDate) : null,
+    notes: job.notes ?? "",
+    createdAt: iso(job.createdAt),
+    updatedAt: iso(job.updatedAt)
+  };
+}
+
 function mapPayment(payment: PrismaPayment): PaymentView {
   return {
     id: payment.id,
@@ -185,7 +215,8 @@ export async function getLeadDetailForPage(id: string) {
         quotes: { include: { lineItems: true }, orderBy: { createdAt: "desc" } },
         activities: { orderBy: { createdAt: "desc" } },
         assets: { orderBy: { createdAt: "desc" } },
-        payments: { orderBy: { paidAt: "desc" } }
+        payments: { orderBy: { paidAt: "desc" } },
+        productionJobs: { orderBy: { updatedAt: "desc" } }
       }
     });
 
@@ -195,7 +226,8 @@ export async function getLeadDetailForPage(id: string) {
         quotes: dbLead.quotes.map(mapQuote),
         activities: dbLead.activities.map(mapActivity),
         assets: dbLead.assets.map(mapAsset),
-        payments: dbLead.payments.map(mapPayment)
+        payments: dbLead.payments.map(mapPayment),
+        productionJobs: dbLead.productionJobs.map(mapProductionJob)
       };
     }
   } catch {}
@@ -206,7 +238,9 @@ export async function getLeadDetailForPage(id: string) {
     lead,
     quotes: quotes.filter((quote) => quote.leadId === id),
     activities: followUpActivities.filter((activity) => activity.leadId === id),
-    assets: []
+    assets: [],
+    payments: [],
+    productionJobs: []
   };
 }
 
@@ -215,7 +249,7 @@ export async function getQuoteDetailForPage(id: string) {
     const quoteNumber = quoteNumberFromDemoId(id) ?? (id.startsWith("CBS-") ? id : null);
     const dbQuote = await prisma.quote.findFirst({
       where: quoteNumber ? { quoteNumber } : { id },
-      include: { lineItems: true, lead: true, payments: { orderBy: { paidAt: "desc" } } }
+      include: { lineItems: true, lead: true, payments: { orderBy: { paidAt: "desc" } }, productionJob: true }
     });
 
     if (dbQuote) {
@@ -223,6 +257,7 @@ export async function getQuoteDetailForPage(id: string) {
         quote: mapQuote(dbQuote),
         lead: mapLead(dbQuote.lead),
         payments: dbQuote.payments.map(mapPayment),
+        productionJob: dbQuote.productionJob ? mapProductionJob(dbQuote.productionJob) : null,
         source: "database" as QuoteDetailSource
       };
     }
@@ -234,7 +269,7 @@ export async function getQuoteDetailForPage(id: string) {
   const quote = quotes.find((item) => item.id === id || item.quoteNumber === id);
   if (!quote) return null;
   const lead = leads.find((item) => item.id === quote.leadId);
-  return { quote, lead, source: "fallback" as QuoteDetailSource };
+  return { quote, lead, payments: [], productionJob: null, source: "fallback" as QuoteDetailSource };
 }
 export async function getNextQuoteNumber() {
   const year = new Date().getFullYear();
@@ -259,6 +294,7 @@ export async function getQuoteCreateData(leadId?: string | null) {
           include: {
             assets: { orderBy: { createdAt: "desc" } },
         payments: { orderBy: { paidAt: "desc" } },
+        productionJobs: { orderBy: { updatedAt: "desc" } },
             activities: { orderBy: { createdAt: "desc" }, take: 8 },
             quotes: { include: { lineItems: true }, orderBy: { createdAt: "desc" } }
           }
@@ -320,12 +356,13 @@ export async function getQuotesForPage() {
 
 export async function getRevenueSourceData() {
   try {
-    const [dbLeads, dbQuotes, dbActivities, dbAssets, dbPayments] = await Promise.all([
+    const [dbLeads, dbQuotes, dbActivities, dbAssets, dbPayments, dbProductionJobs] = await Promise.all([
       prisma.lead.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.quote.findMany({ include: { lineItems: true }, orderBy: { createdAt: "desc" } }),
       prisma.followUpActivity.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.leadAsset.findMany({ orderBy: { createdAt: "desc" } }),
-      prisma.payment.findMany({ orderBy: { paidAt: "desc" } })
+      prisma.payment.findMany({ orderBy: { paidAt: "desc" } }),
+      prisma.productionJob.findMany({ orderBy: { updatedAt: "desc" } })
     ]);
 
     return {
@@ -334,11 +371,12 @@ export async function getRevenueSourceData() {
       activities: dbActivities.map(mapActivity),
       assets: dbAssets.map(mapAsset),
       payments: dbPayments.map(mapPayment),
+      productionJobs: dbProductionJobs.map(mapProductionJob),
       source: "database" as const
     };
   } catch (error) {
     console.error("[revenue-source] database lookup failed", error);
-    return { leads, quotes, activities: followUpActivities, assets: [], payments: [], source: "fallback" as const };
+    return { leads, quotes, activities: followUpActivities, assets: [], payments: [], productionJobs: [], source: "fallback" as const };
   }
 }
 
@@ -354,7 +392,8 @@ export async function getMoneyTodayPageData() {
     quotes: data.quotes,
     activities: data.activities,
     assets: data.assets,
-    payments: data.payments
+    payments: data.payments,
+    productionJobs: data.productionJobs
   };
 }
 
@@ -373,6 +412,7 @@ export async function getMockupBoardData() {
       include: {
         assets: { orderBy: { createdAt: "desc" } },
         payments: { orderBy: { paidAt: "desc" } },
+        productionJobs: { orderBy: { updatedAt: "desc" } },
         activities: { orderBy: { createdAt: "desc" } },
         quotes: { include: { lineItems: true }, orderBy: { createdAt: "desc" } }
       }
@@ -499,3 +539,29 @@ export async function getIntakeInboxData() {
     };
   }
 }
+
+export async function getProductionBoardData() {
+  try {
+    const jobs = await prisma.productionJob.findMany({
+      orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
+      include: {
+        lead: true,
+        quote: { include: { lineItems: true, payments: { orderBy: { paidAt: "desc" } } } }
+      }
+    });
+
+    return {
+      source: "database" as const,
+      jobs: jobs.map((job) => ({
+        job: mapProductionJob(job),
+        lead: mapLead(job.lead),
+        quote: mapQuote(job.quote),
+        payments: job.quote.payments.map(mapPayment)
+      }))
+    };
+  } catch (error) {
+    console.error("[production-board] database lookup failed", error);
+    return { source: "fallback" as const, jobs: [] };
+  }
+}
+

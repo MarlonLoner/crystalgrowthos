@@ -4,10 +4,11 @@ import { ActionButton } from "@/components/action-button";
 import { WhatsAppAction } from "@/components/whatsapp-action";
 import { WhatsAppScriptGenerator } from "@/components/whatsapp-script-generator";
 import { buttonClass, Panel, SectionHeading } from "@/components/ui";
-import { ActivityView, LeadAssetView, PaymentView } from "@/lib/db-data";
+import { ActivityView, LeadAssetView, PaymentView, ProductionJobView } from "@/lib/db-data";
 import { Lead, Quote, quoteFinalTotal } from "@/lib/mock-data";
 import { inferMockupWorkflow, isMockupRelatedLead } from "@/lib/mockup-workflow";
 import { generateWhatsAppScript } from "@/lib/scripts";
+import { getProductionSummary } from "@/lib/production-intelligence";
 import { currency, formatDate } from "@/lib/utils";
 
 function suggestedNextAction(lead: Lead) {
@@ -29,13 +30,15 @@ export function LeadDetail({
   relatedQuotes,
   activities,
   assets = [],
-  payments = []
+  payments = [],
+  productionJobs = []
 }: {
   lead: Lead;
   relatedQuotes: Quote[];
   activities: ActivityView[];
   assets?: LeadAssetView[];
   payments?: PaymentView[];
+  productionJobs?: ProductionJobView[];
 }) {
   const message = generateWhatsAppScript(lead.status === "Lost" ? "dead-lead-revival" : lead.status === "Won" ? "review-request" : "quote-follow-up", lead);
   const mockupWorkflow = inferMockupWorkflow(lead, assets, activities, relatedQuotes);
@@ -154,6 +157,33 @@ export function LeadDetail({
               {payments.length === 0 ? <p className="text-sm text-mercury">No payments recorded yet.</p> : null}
             </div>
           </Panel>
+          <Panel>
+            <SectionHeading eyebrow="Production Jobs" title="Production execution" description="Deposit-confirmed production jobs connected to this lead." />
+            <div className="space-y-3">
+              {productionJobs.length ? productionJobs.map((job) => {
+                const quote = relatedQuotes.find((item) => item.id === job.quoteId);
+                const summary = quote ? getProductionSummary(job, quote, payments.filter((payment) => payment.quoteId === quote.id)) : null;
+                return (
+                  <div key={job.id} className="rounded-lg border border-white/10 bg-obsidian/60 p-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="font-black text-white">{job.title}</p>
+                        <p className="mt-1 text-xs text-mercury">{summary?.statusLabel ?? job.status} - {job.priority}</p>
+                      </div>
+                      {quote ? <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/quotes/${quote.id}`}>View Quote</Link> : null}
+                    </div>
+                    <div className="mt-3 grid gap-2 text-xs text-slate-300 sm:grid-cols-2">
+                      <span>Due: <b className="text-white">{formatDate(job.dueDate)}</b></span>
+                      <span>Install: <b className="text-white">{formatDate(job.installationDate)}</b></span>
+                      <span>Balance: <b className="text-white">{summary ? currency(summary.payment.balanceRemaining) : "Not set"}</b></span>
+                      <span>Next: <b className="text-white">{summary?.suggestedNextAction ?? "Open production board"}</b></span>
+                    </div>
+                    <Link href="/production" className="mt-3 inline-flex rounded-lg bg-aurum px-3 py-2 text-xs font-black text-obsidian">Open Production</Link>
+                  </div>
+                );
+              }) : <p className="text-sm text-mercury">No production jobs yet. Jobs are created automatically when deposit threshold is reached.</p>}
+            </div>
+          </Panel>
 <Panel>
             <SectionHeading eyebrow="Activity Timeline" title="Follow-up activities" description="Real activity records for this lead, including pending, completed, and overdue work." />
             <div className="space-y-3">
@@ -191,5 +221,10 @@ export function LeadDetail({
     </div>
   );
 }
+
+
+
+
+
 
 

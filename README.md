@@ -192,6 +192,42 @@ Migration:
 - Local development: `npx prisma migrate dev`
 - Production/Vercel database: `npx prisma migrate deploy`
 - If using Neon SQL editor manually, run `prisma/migrations/202605230001_add_payments/migration.sql`.
+## Production Job Workflow
+
+Visit `/production` to manage production work after a quote reaches the deposit threshold. Recording a deposit of at least 60% automatically creates one `ProductionJob` for the quote, marks the lead as Won, logs `Production job created`, and creates a pending `Begin production` task.
+
+Production statuses:
+
+```text
+READY_TO_START
+DESIGN_ARTWORK
+PRINTING_FABRICATION
+INSTALLATION_SCHEDULED
+INSTALLED_DELIVERED
+AWAITING_BALANCE
+COMPLETED
+REVIEW_REQUESTED
+CANCELLED
+```
+
+The production board groups jobs by status and shows the client, business, quote number, service category, quote value, amount paid, balance, priority, due date, installation date, and suggested next action. Use the board to start production, move artwork/design into fabrication, schedule installation, mark installed, request balance, mark completed, and request a review.
+
+Production integrates back into lead detail, quote detail, Money Today, follow-ups, and revenue reporting. Completed jobs create pending tasks for review requests and before/after content.
+
+Manual test:
+1. Open a quote and record a deposit above 60%.
+2. Confirm a production job is created and visible at `/production`.
+3. Click Start Production, then Mark Design Approved, then Mark In Fabrication.
+4. Schedule installation with a date and notes.
+5. Mark Installed and confirm balance collection appears if money is still outstanding.
+6. Record the remaining balance on the quote.
+7. Mark Completed and confirm review/content tasks are created.
+8. Open `/api/debug/production` to inspect jobs, payments, suggested actions, and related activities.
+
+Migration:
+- Local development: `npx prisma migrate dev`
+- Production/Vercel database: `npx prisma migrate deploy`
+- If using Neon SQL editor manually, run `prisma/migrations/202605230002_add_production_jobs/migration.sql`.
 ## Quote Print and Send Workflow
 
 Quote detail pages include a send workflow with a generated WhatsApp message, a Mark Quote Sent action, and links to a print-friendly quote view. Open `/quotes/[id]/print` to view a clean white quote layout without dashboard navigation, then use the browser print dialog to save as PDF.
@@ -403,6 +439,7 @@ npm run build
 ```
 
 This SWC issue is environment-specific and should not require rewriting the app.
+
 
 
 

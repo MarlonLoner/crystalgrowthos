@@ -6,8 +6,9 @@ import { useMemo, useState } from "react";
 import { getAiRevenueBrief, getMoneyActionItems, getRevenueMetrics, Priority } from "@/lib/revenue-intelligence";
 import { getMockupWorkflowItems } from "@/lib/mockup-workflow";
 import { Lead, Quote } from "@/lib/mock-data";
-import type { ActivityView, LeadAssetView, PaymentView } from "@/lib/db-data";
+import type { ActivityView, LeadAssetView, PaymentView, ProductionJobView } from "@/lib/db-data";
 import { getPaymentSummary } from "@/lib/payment-intelligence";
+import { getProductionSummary } from "@/lib/production-intelligence";
 import { currency, formatDate } from "@/lib/utils";
 import { WhatsAppAction } from "@/components/whatsapp-action";
 import { ActionButton } from "@/components/action-button";
@@ -29,13 +30,20 @@ type MoneyTodayProps = {
   activities?: ActivityView[];
   assets?: LeadAssetView[];
   payments?: PaymentView[];
+  productionJobs?: ProductionJobView[];
 };
 
-export function MoneyToday({ leads = [], quotes = [], activities = [], assets = [], payments = [] }: MoneyTodayProps) {
+export function MoneyToday({ leads = [], quotes = [], activities = [], assets = [], payments = [], productionJobs = [] }: MoneyTodayProps) {
   const [done, setDone] = useState<string[]>([]);
   const items = useMemo(() => getMoneyActionItems(leads, quotes).filter((item) => !done.includes(item.id)), [leads, quotes, done]);
   const mockupItems = useMemo(() => getMockupWorkflowItems(leads, assets, activities, quotes).filter((item) => !done.includes(`mockup-${item.lead.id}`)), [leads, assets, activities, quotes, done]);
   const paymentItems = useMemo(() => quotes.map((quote) => ({ quote, lead: leads.find((lead) => lead.id === quote.leadId), summary: getPaymentSummary(quote, payments.filter((payment) => payment.quoteId === quote.id)) })).filter((item) => item.lead && item.summary.paymentStatus !== "FULLY_PAID" && item.summary.paymentStatus !== "OVERPAID"), [quotes, leads, payments]);
+  const productionItems = useMemo(() => productionJobs.map((job) => {
+    const quote = quotes.find((item) => item.id === job.quoteId);
+    const lead = leads.find((item) => item.id === job.leadId);
+    if (!quote || !lead) return null;
+    return { job, quote, lead, summary: getProductionSummary(job, quote, payments.filter((payment) => payment.quoteId === quote.id)) };
+  }).filter((item): item is NonNullable<typeof item> => item !== null && !["COMPLETED", "CANCELLED"].includes(item.job.status)), [productionJobs, quotes, leads, payments]);
   const metrics = getRevenueMetrics(leads, quotes, activities);
   const brief = getAiRevenueBrief(leads, quotes);
 
@@ -69,6 +77,39 @@ export function MoneyToday({ leads = [], quotes = [], activities = [], assets = 
         </div>
       </Panel>
 
+      <Panel>
+        <SectionHeading
+          eyebrow="Production Actions"
+          title={`${productionItems.length} production jobs need movement`}
+          description="Deposit-confirmed jobs that need design, fabrication, installation, balance collection, reviews, or content tasks."
+        />
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+          {productionItems.map(({ job, quote, lead, summary }) => (
+            <div key={job.id} className="rounded-lg border border-white/10 bg-obsidian/60 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-black text-white">{job.title}</p>
+                  <p className="mt-1 text-xs text-mercury">{lead.businessName} - {quote.quoteNumber}</p>
+                </div>
+                <span className="rounded-lg bg-emerald-400/10 px-2 py-1 text-xs font-black text-emerald-200">{summary.statusLabel}</span>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-300">
+                <span>Total: <b className="text-white">{currency(summary.payment.quoteTotal)}</b></span>
+                <span>Balance: <b className="text-white">{currency(summary.payment.balanceRemaining)}</b></span>
+                <span>Priority: <b className="text-white">{job.priority}</b></span>
+                <span>Due: <b className="text-white">{formatDate(job.dueDate)}</b></span>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-200">{summary.suggestedNextAction}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/quotes/${quote.id}`}>View Quote</Link>
+                <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/leads/${lead.id}`}>View Lead</Link>
+                <Link className="rounded-lg bg-aurum px-3 py-2 text-xs font-black text-obsidian" href="/production">Open Production</Link>
+              </div>
+            </div>
+          ))}
+          {productionItems.length === 0 ? <p className="text-sm text-mercury">No production jobs need action right now.</p> : null}
+        </div>
+      </Panel>
       <Panel className="border-aurum/20 bg-aurum/10">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-aurum">Mock AI Revenue Brief</p>
         <p className="mt-3 text-xl font-black leading-8 text-white">{brief.summary}</p>
@@ -162,6 +203,10 @@ export function MoneyToday({ leads = [], quotes = [], activities = [], assets = 
     </div>
   );
 }
+
+
+
+
 
 
 

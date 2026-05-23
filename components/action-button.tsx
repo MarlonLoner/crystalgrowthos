@@ -9,6 +9,13 @@ import {
   markMockupSentAction,
   markReadyForQuoteAction,
   requestMissingAssetsAction,
+  startProductionAction,
+  markDesignArtworkAction,
+  markPrintingFabricationAction,
+  markInstalledDeliveredAction,
+  requestBalanceAction,
+  markProductionCompletedAction,
+  requestReviewAction,
   scheduleFollowUpTomorrowAction,
   updateQuoteStatusAction
 } from "@/lib/actions";
@@ -21,7 +28,8 @@ export function ActionButton({
   activityId,
   note,
   action,
-  quoteStatus
+  quoteStatus,
+  jobId
 }: {
   children: React.ReactNode;
   className: string;
@@ -29,8 +37,9 @@ export function ActionButton({
   quoteId?: string;
   activityId?: string;
   note?: string;
-  action: "mark-contacted" | "complete-follow-up" | "quote-status" | "schedule-quote-follow-up" | "mockup-in-design" | "mockup-sent" | "ready-for-quote" | "request-missing-assets";
+  action: "mark-contacted" | "complete-follow-up" | "quote-status" | "schedule-quote-follow-up" | "mockup-in-design" | "mockup-sent" | "ready-for-quote" | "request-missing-assets" | "start-production" | "design-artwork" | "printing-fabrication" | "installed-delivered" | "request-balance" | "production-completed" | "request-review";
   quoteStatus?: "SENT" | "VIEWED" | "ACCEPTED" | "REJECTED" | "PAID";
+  jobId?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -56,7 +65,21 @@ export function ActionButton({
                     ? await markReadyForQuoteAction(leadId)
                     : action === "request-missing-assets" && leadId
                       ? await requestMissingAssetsAction(leadId)
-                      : { ok: false, message: "Missing action data" };
+                      : action === "start-production" && jobId
+                        ? await startProductionAction(jobId)
+                        : action === "design-artwork" && jobId
+                          ? await markDesignArtworkAction(jobId)
+                          : action === "printing-fabrication" && jobId
+                            ? await markPrintingFabricationAction(jobId)
+                            : action === "installed-delivered" && jobId
+                              ? await markInstalledDeliveredAction(jobId)
+                              : action === "request-balance" && jobId
+                                ? await requestBalanceAction(jobId)
+                                : action === "production-completed" && jobId
+                                  ? await markProductionCompletedAction(jobId)
+                                  : action === "request-review" && jobId
+                                    ? await requestReviewAction(jobId)
+                                    : { ok: false, message: "Missing action data" };
 
         if (result.ok) {
           setMessage(result.message ?? "Saved to database");
@@ -79,5 +102,8 @@ export function ActionButton({
     </span>
   );
 }
+
+
+
 
 

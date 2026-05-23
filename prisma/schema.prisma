@@ -42,6 +42,7 @@ model Lead {
   quotes              Quote[]
   assets              LeadAsset[]
   payments            Payment[]
+  productionJobs      ProductionJob[]
 }
 
 model ContentBrief {
@@ -112,6 +113,7 @@ model Quote {
   lead            Lead            @relation(fields: [leadId], references: [id], onDelete: Cascade)
   lineItems       QuoteLineItem[]
   payments        Payment[]
+  productionJob   ProductionJob?
 }
 
 model QuoteLineItem {
@@ -137,6 +139,21 @@ model Payment {
   createdAt DateTime      @default(now())
   quote     Quote         @relation(fields: [quoteId], references: [id], onDelete: Cascade)
   lead      Lead?         @relation(fields: [leadId], references: [id], onDelete: SetNull)
+}
+model ProductionJob {
+  id               String             @id @default(cuid())
+  quoteId          String             @unique
+  leadId           String
+  title            String
+  status           ProductionStatus   @default(READY_TO_START)
+  priority         ProductionPriority @default(NORMAL)
+  dueDate          DateTime?
+  installationDate DateTime?
+  notes            String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  quote            Quote              @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  lead             Lead               @relation(fields: [leadId], references: [id], onDelete: Cascade)
 }
 model FollowUpActivity {
   id          String               @id @default(cuid())
@@ -193,6 +210,24 @@ enum FollowUpActivityType {
   NOTE
 }
 
+enum ProductionStatus {
+  READY_TO_START
+  DESIGN_ARTWORK
+  PRINTING_FABRICATION
+  INSTALLATION_SCHEDULED
+  INSTALLED_DELIVERED
+  AWAITING_BALANCE
+  COMPLETED
+  REVIEW_REQUESTED
+  CANCELLED
+}
+
+enum ProductionPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
 enum PaymentMethod {
   CASH
   ECOCASH

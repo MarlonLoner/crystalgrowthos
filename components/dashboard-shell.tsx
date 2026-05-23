@@ -4,6 +4,7 @@ import {
   Brush,
   CalendarClock,
   CircleDollarSign,
+  Factory,
   FileText,
   Inbox,
   LayoutDashboard,
@@ -24,6 +25,7 @@ const nav = [
   ["Leads", "/leads", UsersRound],
   ["Intake Inbox", "/intake/inbox", Inbox],
   ["Mockups", "/mockups", Brush],
+  ["Production", "/production", Factory],
   ["Pipeline", "/#pipeline", BarChart3],
   ["Content", "/#content", Sparkles],
   ["Campaigns", "/#campaigns", Mail],
@@ -79,6 +81,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
 
 
 
