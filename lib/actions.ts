@@ -4,6 +4,7 @@ import { FollowUpActivityType, LeadStatus, PaymentMethod, Prisma, ProductionPrio
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { generateProofContentDrafts } from "@/lib/proof-content";
 
 const leadStatusMap: Record<string, LeadStatus> = {
   "New Lead": LeadStatus.NEW_LEAD,
@@ -149,25 +150,34 @@ export async function markLeadContactedAction(leadId: string) {
 
 export async function completeFollowUpActivityAction(input: { leadId: string; activityId?: string; note?: string }) {
   const now = new Date();
+  let completedActivity: { leadId: string; title: string; note: string | null } | null = null;
 
   if (input.activityId) {
-    await prisma.followUpActivity.update({
+    completedActivity = await prisma.followUpActivity.update({
       where: { id: input.activityId },
-      data: { completedAt: now }
+      data: { completedAt: now },
+      select: { leadId: true, title: true, note: true }
     });
   } else {
-    await prisma.followUpActivity.create({
+    completedActivity = await prisma.followUpActivity.create({
       data: {
         leadId: input.leadId,
         type: FollowUpActivityType.NOTE,
         title: "Follow-up completed",
         note: input.note ?? "Follow-up was marked done from Crystal Growth OS",
         completedAt: now
-      }
+      },
+      select: { leadId: true, title: true, note: true }
     });
   }
 
+  if (completedActivity) {
+    await syncProofFromCompletedActivity(completedActivity);
+  }
+
   revalidateSalesRoutes(undefined, input.leadId);
+  revalidatePath("/proof");
+  revalidatePath("/production");
   return { ok: true, message: "Follow-up marked done" };
 }
 
@@ -921,9 +931,52 @@ export async function createQuoteAction(formData: FormData) {
   revalidatePath("/reports/revenue");
   redirect(`/quotes/${quote.id}`);
 }
-async function ensureProofAssetsForProductionJob(jobId: string) {
-  const job = await prisma.productionJob.findUnique({ where: { id: jobId }, include: { quote: true, lead: true } });
-  if (!job) throw new Error(`Production job not found: ${jobId}`);
+type EnsureProofAssetInput = {
+  leadId: string;
+  quoteId?: string | null;
+  productionJobId?: string | null;
+  type: ProofAssetType;
+  title: string;
+  content?: string | null;
+  status?: ProofStatus;
+};
+
+async function ensureProofAssetForJob(input: EnsureProofAssetInput) {
+  const existing = await prisma.proofAsset.findFirst({
+    where: input.productionJobId
+      ? { productionJobId: input.productionJobId, type: input.type }
+      : { leadId: input.leadId, quoteId: input.quoteId ?? null, productionJobId: null, type: input.type }
+  });
+
+  if (existing) {
+    return prisma.proofAsset.update({
+      where: { id: existing.id },
+      data: {
+        title: input.title || existing.title,
+        content: input.content ?? existing.content,
+        quoteId: input.quoteId ?? existing.quoteId,
+        productionJobId: input.productionJobId ?? existing.productionJobId,
+        status: input.status ?? existing.status
+      }
+    });
+  }
+
+  return prisma.proofAsset.create({
+    data: {
+      leadId: input.leadId,
+      quoteId: input.quoteId ?? null,
+      productionJobId: input.productionJobId ?? null,
+      type: input.type,
+      title: input.title,
+      content: input.content ?? null,
+      status: input.status ?? ProofStatus.TODO
+    }
+  });
+}
+
+async function ensureDefaultProofAssetsForCompletedJob(productionJobId: string) {
+  const job = await prisma.productionJob.findUnique({ where: { id: productionJobId }, include: { quote: true, lead: true } });
+  if (!job) throw new Error(`Production job not found: ${productionJobId}`);
 
   const templates = [
     { type: ProofAssetType.REVIEW_REQUEST, title: "Request client review", content: "Ask client for a Google review or WhatsApp testimonial." },
@@ -931,26 +984,46 @@ async function ensureProofAssetsForProductionJob(jobId: string) {
     { type: ProofAssetType.REFERRAL_REQUEST, title: "Ask for referral", content: "Ask the happy client to refer another business." }
   ];
 
-  const created = [];
+  const proofAssets = [];
   for (const template of templates) {
-    const existing = await prisma.proofAsset.findFirst({
-      where: { productionJobId: job.id, leadId: job.leadId, type: template.type }
-    });
-    if (existing) continue;
-    created.push(await prisma.proofAsset.create({
-      data: {
-        leadId: job.leadId,
-        quoteId: job.quoteId,
-        productionJobId: job.id,
-        type: template.type,
-        title: template.title,
-        content: template.content,
-        status: ProofStatus.TODO
-      }
+    proofAssets.push(await ensureProofAssetForJob({
+      leadId: job.leadId,
+      quoteId: job.quoteId,
+      productionJobId: job.id,
+      type: template.type,
+      title: template.title,
+      content: template.content,
+      status: ProofStatus.TODO
     }));
   }
 
-  return { job, created };
+  return { job, proofAssets };
+}
+
+async function ensureProofAssetFromLeadActivity(leadId: string, type: ProofAssetType, status: ProofStatus, title: string, content: string) {
+  const job = await prisma.productionJob.findFirst({ where: { leadId }, orderBy: { updatedAt: "desc" } });
+  return ensureProofAssetForJob({
+    leadId,
+    quoteId: job?.quoteId ?? null,
+    productionJobId: job?.id ?? null,
+    type,
+    title,
+    content,
+    status
+  });
+}
+
+async function syncProofFromCompletedActivity(activity: { leadId: string; title: string; note: string | null }) {
+  const text = `${activity.title} ${activity.note ?? ""}`.toLowerCase();
+  if (text.includes("request review") || text.includes("review requested")) {
+    await ensureProofAssetFromLeadActivity(activity.leadId, ProofAssetType.REVIEW_REQUEST, ProofStatus.REQUESTED, "Request client review", "Review request was completed from follow-up workflow.");
+  }
+  if (text.includes("before/after") || text.includes("before after")) {
+    await ensureProofAssetFromLeadActivity(activity.leadId, ProofAssetType.BEFORE_AFTER, ProofStatus.DRAFTED, "Create before/after content", "Before/after content task was completed from follow-up workflow.");
+  }
+  if (text.includes("referral")) {
+    await ensureProofAssetFromLeadActivity(activity.leadId, ProofAssetType.REFERRAL_REQUEST, ProofStatus.REQUESTED, "Ask for referral", "Referral request was completed from follow-up workflow.");
+  }
 }
 
 async function updateProofAssetStatus(proofAssetId: string, status: ProofStatus, title: string, note: string, type: FollowUpActivityType = FollowUpActivityType.NOTE) {
@@ -1069,10 +1142,10 @@ export async function requestBalanceAction(jobId: string) {
 
 export async function markProductionCompletedAction(jobId: string) {
   const result = await updateProductionJobStatus(jobId, ProductionStatus.COMPLETED, "Production completed", "Production job has been completed.");
-  const { job } = await ensureProofAssetsForProductionJob(jobId);
+  const { job } = await ensureDefaultProofAssetsForCompletedJob(jobId);
   const due = tomorrow();
   const existingTasks = await prisma.followUpActivity.findMany({
-    where: { leadId: job.leadId, title: { in: ["Request review", "Create before/after content"] }, completedAt: null }
+    where: { leadId: job.leadId, title: { in: ["Request review", "Create before/after content", "Ask for referral"] }, completedAt: null }
   });
   const existingTitles = new Set(existingTasks.map((task) => task.title));
   if (!existingTitles.has("Request review")) {
@@ -1085,6 +1158,11 @@ export async function markProductionCompletedAction(jobId: string) {
       data: { leadId: job.leadId, type: FollowUpActivityType.NOTE, title: "Create before/after content", note: "Use completed work as marketing content.", dueAt: due, completedAt: null }
     });
   }
+  if (!existingTitles.has("Ask for referral")) {
+    await prisma.followUpActivity.create({
+      data: { leadId: job.leadId, type: FollowUpActivityType.WHATSAPP, title: "Ask for referral", note: "Ask the happy client to refer another business.", dueAt: due, completedAt: null }
+    });
+  }
   revalidateProductionRoutes(job.leadId, job.quoteId);
   revalidatePath("/proof");
   return result;
@@ -1093,10 +1171,10 @@ export async function markProductionCompletedAction(jobId: string) {
 export async function requestReviewAction(id: string) {
   const job = await prisma.productionJob.findUnique({ where: { id } });
   if (job) {
-    await ensureProofAssetsForProductionJob(job.id);
+    await ensureDefaultProofAssetsForCompletedJob(job.id);
     await prisma.productionJob.update({ where: { id: job.id }, data: { status: ProductionStatus.REVIEW_REQUESTED } });
     await prisma.proofAsset.updateMany({ where: { productionJobId: job.id, type: ProofAssetType.REVIEW_REQUEST }, data: { status: ProofStatus.REQUESTED } });
-    await prisma.followUpActivity.create({ data: { leadId: job.leadId, type: FollowUpActivityType.WHATSAPP, title: "Request review", note: "Ask client for a review/testimonial after completed work.", dueAt: tomorrow(), completedAt: null } });
+    await prisma.followUpActivity.create({ data: { leadId: job.leadId, type: FollowUpActivityType.WHATSAPP, title: "Review requested", note: "Asked client for a review/testimonial after completed work.", completedAt: new Date() } });
     revalidateProductionRoutes(job.leadId, job.quoteId);
     revalidatePath("/proof");
     return { ok: true, message: "Review requested" };
@@ -1106,11 +1184,128 @@ export async function requestReviewAction(id: string) {
 }
 
 export async function markReviewReceivedAction(proofAssetId: string) {
-  return updateProofAssetStatus(proofAssetId, ProofStatus.RECEIVED, "Review received", "Client review/testimonial was received.");
+  const result = await updateProofAssetStatus(proofAssetId, ProofStatus.RECEIVED, "Review received", "Client review/testimonial was received.");
+  const proof = await prisma.proofAsset.findUnique({ where: { id: proofAssetId }, include: { lead: true, quote: { include: { lineItems: true } }, productionJob: true } });
+  if (proof) {
+    await ensureProofAssetForJob({
+      leadId: proof.leadId,
+      quoteId: proof.quoteId,
+      productionJobId: proof.productionJobId,
+      type: ProofAssetType.SOCIAL_POST,
+      title: "Draft social proof post",
+      content: generateProofContentDrafts({
+        lead: {
+          id: proof.lead.id,
+          name: proof.lead.name,
+          phone: proof.lead.phone,
+          email: proof.lead.email,
+          businessName: proof.lead.businessName,
+          businessType: proof.lead.businessType,
+          source: proof.lead.source,
+          serviceInterestedIn: proof.lead.serviceInterestedIn,
+          status: proof.lead.status,
+          dealValue: Number(proof.lead.dealValue),
+          estimatedDealValue: Number(proof.lead.estimatedDealValue ?? proof.lead.dealValue),
+          birthday: "",
+          notes: proof.lead.notes ?? "",
+          createdAt: "",
+          nextFollowUpDate: ""
+        },
+        quote: proof.quote ? {
+          id: proof.quote.id,
+          leadId: proof.quote.leadId,
+          clientName: proof.quote.clientName,
+          businessName: proof.quote.businessName,
+          quoteNumber: proof.quote.quoteNumber,
+          serviceCategory: proof.quote.serviceCategory,
+          lineItems: proof.quote.lineItems.map((item) => ({ id: item.id, description: item.description, quantity: item.quantity, unitPrice: Number(item.unitPrice) })),
+          discount: Number(proof.quote.discount),
+          status: proof.quote.status,
+          notes: proof.quote.notes ?? "",
+          terms: proof.quote.terms ?? "",
+          createdAt: "",
+          expiryDate: ""
+        } : null,
+        job: proof.productionJob ? {
+          id: proof.productionJob.id,
+          quoteId: proof.productionJob.quoteId,
+          leadId: proof.productionJob.leadId,
+          title: proof.productionJob.title,
+          status: proof.productionJob.status,
+          priority: proof.productionJob.priority,
+          dueDate: proof.productionJob.dueDate?.toISOString().slice(0, 10) ?? null,
+          installationDate: proof.productionJob.installationDate?.toISOString().slice(0, 10) ?? null,
+          notes: proof.productionJob.notes ?? "",
+          createdAt: "",
+          updatedAt: ""
+        } : null
+      }).facebookCaption,
+      status: ProofStatus.TODO
+    });
+  }
+  return result;
 }
 
 export async function draftSocialPostAction(proofAssetId: string) {
-  return updateProofAssetStatus(proofAssetId, ProofStatus.DRAFTED, "Social proof drafted", "Drafted a social proof post from this completed work.");
+  const proof = await prisma.proofAsset.findUnique({ where: { id: proofAssetId }, include: { lead: true, quote: { include: { lineItems: true } }, productionJob: true } });
+  if (!proof) throw new Error(`Proof asset not found: ${proofAssetId}`);
+  const lead = {
+    id: proof.lead.id,
+    name: proof.lead.name,
+    phone: proof.lead.phone,
+    email: proof.lead.email,
+    businessName: proof.lead.businessName,
+    businessType: proof.lead.businessType,
+    source: proof.lead.source,
+    serviceInterestedIn: proof.lead.serviceInterestedIn,
+    status: proof.lead.status,
+    dealValue: Number(proof.lead.dealValue),
+    estimatedDealValue: Number(proof.lead.estimatedDealValue ?? proof.lead.dealValue),
+    birthday: "",
+    notes: proof.lead.notes ?? "",
+    createdAt: "",
+    nextFollowUpDate: ""
+  };
+  const quote = proof.quote ? {
+    id: proof.quote.id,
+    leadId: proof.quote.leadId,
+    clientName: proof.quote.clientName,
+    businessName: proof.quote.businessName,
+    quoteNumber: proof.quote.quoteNumber,
+    serviceCategory: proof.quote.serviceCategory,
+    lineItems: proof.quote.lineItems.map((item) => ({ id: item.id, description: item.description, quantity: item.quantity, unitPrice: Number(item.unitPrice) })),
+    discount: Number(proof.quote.discount),
+    status: proof.quote.status,
+    notes: proof.quote.notes ?? "",
+    terms: proof.quote.terms ?? "",
+    createdAt: "",
+    expiryDate: ""
+  } : null;
+  const job = proof.productionJob ? {
+    id: proof.productionJob.id,
+    quoteId: proof.productionJob.quoteId,
+    leadId: proof.productionJob.leadId,
+    title: proof.productionJob.title,
+    status: proof.productionJob.status,
+    priority: proof.productionJob.priority,
+    dueDate: proof.productionJob.dueDate?.toISOString().slice(0, 10) ?? null,
+    installationDate: proof.productionJob.installationDate?.toISOString().slice(0, 10) ?? null,
+    notes: proof.productionJob.notes ?? "",
+    createdAt: "",
+    updatedAt: ""
+  } : null;
+  const content = generateProofContentDrafts({ lead, quote, job }).facebookCaption;
+  const socialPost = await ensureProofAssetForJob({
+    leadId: proof.leadId,
+    quoteId: proof.quoteId,
+    productionJobId: proof.productionJobId,
+    type: ProofAssetType.SOCIAL_POST,
+    title: "Social proof post drafted",
+    content,
+    status: ProofStatus.DRAFTED
+  });
+  await updateProofAssetStatus(proof.id, proof.type === ProofAssetType.SOCIAL_POST ? ProofStatus.DRAFTED : proof.status, "Social proof drafted", "Drafted a social proof post from this completed work.");
+  return { ok: true, message: "Social proof drafted", proofAssetId: socialPost.id };
 }
 
 export async function markProofPublishedAction(proofAssetId: string) {
@@ -1412,6 +1607,13 @@ export async function scheduleFollowUpTomorrowAction(quoteId: string) {
     };
   }
 }
+
+
+
+
+
+
+
 
 
 

@@ -21,7 +21,7 @@ export function getProofSummary({
   proofAssets: ProofAssetView[];
 }) {
   const reviewRequested = proofAssets.some((asset) => asset.type === "REVIEW_REQUEST" && ["REQUESTED", "RECEIVED", "DRAFTED", "PUBLISHED"].includes(asset.status));
-  const testimonialReceived = proofAssets.some((asset) => asset.type === "TESTIMONIAL" && ["RECEIVED", "DRAFTED", "PUBLISHED"].includes(asset.status));
+  const testimonialReceived = proofAssets.some((asset) => ["TESTIMONIAL", "REVIEW_REQUEST"].includes(asset.type) && ["RECEIVED", "DRAFTED", "PUBLISHED"].includes(asset.status));
   const beforeAfterExists = proofAssets.some((asset) => asset.type === "BEFORE_AFTER" && ["DRAFTED", "PUBLISHED", "RECEIVED"].includes(asset.status));
   const referralRequestSent = proofAssets.some((asset) => asset.type === "REFERRAL_REQUEST" && ["REQUESTED", "RECEIVED", "DRAFTED", "PUBLISHED"].includes(asset.status));
   const published = proofAssets.some((asset) => asset.status === "PUBLISHED");
@@ -66,3 +66,4 @@ export function getProofSummary({
     contentOpportunityScore
   };
 }
+
