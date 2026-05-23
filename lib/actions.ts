@@ -60,8 +60,14 @@ async function findQuoteForAction(quoteId: string) {
 function revalidateSalesRoutes(inputQuoteId?: string, leadId?: string, resolvedQuoteId?: string) {
   ["/", "/leads", "/follow-ups", "/money-today", "/quotes", "/reports/revenue"].forEach((path) => revalidatePath(path));
   if (leadId) revalidatePath(`/leads/${leadId}`);
-  if (inputQuoteId) revalidatePath(`/quotes/${inputQuoteId}`);
-  if (resolvedQuoteId && resolvedQuoteId !== inputQuoteId) revalidatePath(`/quotes/${resolvedQuoteId}`);
+  if (inputQuoteId) {
+    revalidatePath(`/quotes/${inputQuoteId}`);
+    revalidatePath(`/quotes/${inputQuoteId}/print`);
+  }
+  if (resolvedQuoteId && resolvedQuoteId !== inputQuoteId) {
+    revalidatePath(`/quotes/${resolvedQuoteId}`);
+    revalidatePath(`/quotes/${resolvedQuoteId}/print`);
+  }
 }
 
 export async function createLeadAction(formData: FormData) {
@@ -983,7 +989,7 @@ export async function updateQuoteStatusAction(quoteId: string, statusValue: stri
                   ? "Quote rejected"
                   : `Quote ${status.toLowerCase().replaceAll("_", " ")}`,
         note: status === QuoteStatus.SENT
-          ? "Quote was marked as sent from Crystal Growth OS"
+          ? "Quote was sent to the client."
           : `Quote ${quote.quoteNumber} was marked ${status.toLowerCase().replaceAll("_", " ")} from Crystal Growth OS`,
         completedAt: now
       },
@@ -991,7 +997,23 @@ export async function updateQuoteStatusAction(quoteId: string, statusValue: stri
     });
     console.log("[quote-action] created FollowUpActivity result", activity);
 
+    const followUpActivity = status === QuoteStatus.SENT
+      ? await prisma.followUpActivity.create({
+          data: {
+            leadId: quote.leadId,
+            type: FollowUpActivityType.WHATSAPP,
+            title: "Follow up on quote",
+            note: "Check if the client is ready to proceed with deposit/payment.",
+            dueAt: next,
+            completedAt: null
+          },
+          select: { id: true, type: true, title: true, dueAt: true, completedAt: true }
+        })
+      : null;
+    if (followUpActivity) console.log("[quote-action] created pending quote follow-up", followUpActivity);
+
     revalidateSalesRoutes(quoteId, quote.leadId, quote.id);
+    revalidatePath(`/q/${quote.quoteNumber}`);
 
     return {
       ok: true,
@@ -1056,6 +1078,7 @@ export async function scheduleFollowUpTomorrowAction(quoteId: string) {
     console.log("[quote-action] created FollowUpActivity result", activity);
 
     revalidateSalesRoutes(quoteId, quote.leadId, quote.id);
+    revalidatePath(`/q/${quote.quoteNumber}`);
 
     return {
       ok: true,

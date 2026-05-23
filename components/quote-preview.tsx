@@ -1,4 +1,5 @@
-﻿import Link from "next/link";
+import Link from "next/link";
+import { Download, Printer } from "lucide-react";
 import { Lead, Quote, quoteFinalTotal, quoteSubtotal } from "@/lib/mock-data";
 import { currency, formatDate } from "@/lib/utils";
 import { buttonClass, Panel } from "@/components/ui";
@@ -58,6 +59,8 @@ export function QuotePreview({ quote, lead }: { quote: Quote; lead?: Lead }) {
       {lead ? <QuoteSendActions quote={quote} lead={lead} /> : null}
 
       <div className="mt-8 flex flex-wrap gap-3 print:hidden">
+        <Link className="inline-flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-black text-white" href={`/quotes/${quote.id}/print`}><Printer size={16} /> Open Print View</Link>
+        <Link className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white" href={`/quotes/${quote.id}/print`}><Download size={16} /> Download / Save as PDF</Link>
         <Link className={buttonClass} href={`/quotes/${quote.id}/edit`}>Edit Quote</Link>
         <Link className="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white" href="/quotes">Back to Quotes</Link>
       </div>

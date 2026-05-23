@@ -171,6 +171,23 @@ Manual test:
 6. Click Mark Ready for Quote, then create a quote from the same lead.
 7. Open `/api/debug/mockups` to inspect inferred status, assets, activities, and related quotes.
 
+
+## Quote Print and Send Workflow
+
+Quote detail pages include a send workflow with a generated WhatsApp message, a Mark Quote Sent action, and links to a print-friendly quote view. Open `/quotes/[id]/print` to view a clean white quote layout without dashboard navigation, then use the browser print dialog to save as PDF.
+
+Public read-only quote links are available at `/q/[quoteNumber]` for a simple client-facing print view.
+
+When Mark Quote Sent is clicked, Crystal Growth OS updates the quote to `SENT`, updates the related lead to `QUOTE_SENT`, creates a completed `Quote sent` WhatsApp activity, creates a pending `Follow up on quote` WhatsApp activity due tomorrow, and refreshes dashboard, lead, quote, Money Today, follow-up, and revenue report paths.
+
+Manual test:
+1. Create a quote from a lead.
+2. Open the quote detail page.
+3. Click Open Print View and use browser print/save as PDF.
+4. Confirm all totals display in USD.
+5. Click Mark Quote Sent.
+6. Confirm quote status is `SENT` and the lead status is `QUOTE_SENT`.
+7. Open `/api/debug/quote-send/[id]` and confirm quote-sent and pending follow-up records exist.
 ## Create Quote From Lead
 
 Use `/quotes/new?leadId=LEAD_ID` to create a database-backed quote directly from a lead or mockup request. When a lead id is present, Crystal Growth OS loads the lead, assets, recent activities, and existing quotes, then pre-fills the quote form with client name, business name, service category, notes, default quote terms, and suggested editable line items.

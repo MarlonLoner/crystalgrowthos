@@ -1,6 +1,6 @@
-﻿"use client";
+"use client";
 
-import { CalendarPlus, CheckCircle2, Eye, Send, XCircle } from "lucide-react";
+import { CalendarPlus, CheckCircle2, Eye, Link as LinkIcon, Send, XCircle } from "lucide-react";
 import { useMemo } from "react";
 import { ActionButton } from "@/components/action-button";
 import { WhatsAppAction } from "@/components/whatsapp-action";
@@ -10,7 +10,7 @@ import { currency } from "@/lib/utils";
 export function QuoteSendActions({ quote, lead }: { quote: Quote; lead: Lead }) {
   const message = useMemo(
     () =>
-      `Hi ${lead.name.split(" ")[0]}, your ${quote.serviceCategory.toLowerCase()} quote for ${quote.businessName} is ready. Quote ${quote.quoteNumber} totals ${currency(quoteFinalTotal(quote))}. Please check it and let me know if we can proceed with deposit so we secure production time.`,
+      `Hi ${lead.name.split(" ")[0]}, your ${quote.serviceCategory.toLowerCase()} quote for ${quote.businessName} is ready. Quote ${quote.quoteNumber} totals ${currency(quoteFinalTotal(quote))}. Terms/deposit details are included on the quote. You can view or save it here: /quotes/${quote.id}/print. Please confirm if we can proceed with deposit/payment so we secure production time.`,
     [lead.name, quote]
   );
 
@@ -22,6 +22,7 @@ export function QuoteSendActions({ quote, lead }: { quote: Quote; lead: Lead }) 
           <p className="mt-2 text-lg font-black text-slate-950">Send and update quote status</p>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">{message}</p>
           <p className="mt-3 text-xs font-bold text-slate-600">Current status: {quote.status}</p>
+          <a href={`/quotes/${quote.id}/print`} className="mt-3 inline-flex items-center gap-2 text-xs font-black text-orange-700 hover:text-orange-900"><LinkIcon size={14} /> Open printable quote link</a>
         </div>
         <WhatsAppAction phone={lead.phone} message={message} />
       </div>
