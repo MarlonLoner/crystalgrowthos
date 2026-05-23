@@ -740,14 +740,28 @@ export async function markMockupSentAction(leadId: string) {
   await ensureLeadForMockupAction(leadId);
   const now = new Date();
   const next = tomorrow();
+
+  console.log("[mockup-workflow] markMockupSentAction", { leadId });
+  const prepareTasks = await prisma.followUpActivity.findMany({
+    where: {
+      leadId,
+      title: { contains: "Prepare and send mockup", mode: "insensitive" },
+      completedAt: null
+    },
+    select: { id: true, title: true }
+  });
+  console.log("[mockup-workflow] pending prepare tasks found", { leadId, count: prepareTasks.length, ids: prepareTasks.map((task) => task.id) });
+
   const completedInternalTasks = await prisma.followUpActivity.updateMany({
     where: {
       leadId,
-      title: "Prepare and send mockup",
+      id: { in: prepareTasks.map((task) => task.id) },
       completedAt: null
     },
     data: { completedAt: now }
   });
+  console.log("[mockup-workflow] prepare tasks completed", { leadId, count: completedInternalTasks.count });
+
   const sent = await prisma.followUpActivity.create({
     data: {
       leadId,
@@ -758,6 +772,8 @@ export async function markMockupSentAction(leadId: string) {
     },
     select: { id: true }
   });
+  console.log("[mockup-workflow] created mockup sent activity", { leadId, activityId: sent.id });
+
   const followUp = await prisma.followUpActivity.create({
     data: {
       leadId,
@@ -769,6 +785,8 @@ export async function markMockupSentAction(leadId: string) {
     },
     select: { id: true }
   });
+  console.log("[mockup-workflow] created mockup follow-up activity", { leadId, activityId: followUp.id });
+
   await prisma.lead.update({ where: { id: leadId }, data: { nextFollowUpAt: next, nextFollowUpDate: next } });
   revalidateMockupRoutes(leadId);
   return {
