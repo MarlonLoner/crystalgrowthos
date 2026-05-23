@@ -3,22 +3,47 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
+  askForReferralAction,
   completeFollowUpActivityAction,
+  draftSocialPostAction,
+  markDesignArtworkAction,
+  markInstalledDeliveredAction,
   markLeadContactedAction,
   markMockupInDesignAction,
   markMockupSentAction,
-  markReadyForQuoteAction,
-  requestMissingAssetsAction,
-  startProductionAction,
-  markDesignArtworkAction,
   markPrintingFabricationAction,
-  markInstalledDeliveredAction,
-  requestBalanceAction,
+  markProofPublishedAction,
   markProductionCompletedAction,
+  markReadyForQuoteAction,
+  markReviewReceivedAction,
+  requestBalanceAction,
+  requestMissingAssetsAction,
   requestReviewAction,
   scheduleFollowUpTomorrowAction,
+  startProductionAction,
   updateQuoteStatusAction
 } from "@/lib/actions";
+
+type ActionKind =
+  | "mark-contacted"
+  | "complete-follow-up"
+  | "quote-status"
+  | "schedule-quote-follow-up"
+  | "mockup-in-design"
+  | "mockup-sent"
+  | "ready-for-quote"
+  | "request-missing-assets"
+  | "start-production"
+  | "design-artwork"
+  | "printing-fabrication"
+  | "installed-delivered"
+  | "request-balance"
+  | "production-completed"
+  | "request-review"
+  | "review-received"
+  | "draft-social-post"
+  | "proof-published"
+  | "ask-referral";
 
 export function ActionButton({
   children,
@@ -29,7 +54,8 @@ export function ActionButton({
   note,
   action,
   quoteStatus,
-  jobId
+  jobId,
+  proofAssetId
 }: {
   children: React.ReactNode;
   className: string;
@@ -37,9 +63,10 @@ export function ActionButton({
   quoteId?: string;
   activityId?: string;
   note?: string;
-  action: "mark-contacted" | "complete-follow-up" | "quote-status" | "schedule-quote-follow-up" | "mockup-in-design" | "mockup-sent" | "ready-for-quote" | "request-missing-assets" | "start-production" | "design-artwork" | "printing-fabrication" | "installed-delivered" | "request-balance" | "production-completed" | "request-review";
+  action: ActionKind;
   quoteStatus?: "SENT" | "VIEWED" | "ACCEPTED" | "REJECTED" | "PAID";
   jobId?: string;
+  proofAssetId?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -58,28 +85,36 @@ export function ActionButton({
               : action === "schedule-quote-follow-up" && quoteId
                 ? await scheduleFollowUpTomorrowAction(quoteId)
                 : action === "mockup-in-design" && leadId
-                ? await markMockupInDesignAction(leadId)
-                : action === "mockup-sent" && leadId
-                  ? await markMockupSentAction(leadId)
-                  : action === "ready-for-quote" && leadId
-                    ? await markReadyForQuoteAction(leadId)
-                    : action === "request-missing-assets" && leadId
-                      ? await requestMissingAssetsAction(leadId)
-                      : action === "start-production" && jobId
-                        ? await startProductionAction(jobId)
-                        : action === "design-artwork" && jobId
-                          ? await markDesignArtworkAction(jobId)
-                          : action === "printing-fabrication" && jobId
-                            ? await markPrintingFabricationAction(jobId)
-                            : action === "installed-delivered" && jobId
-                              ? await markInstalledDeliveredAction(jobId)
-                              : action === "request-balance" && jobId
-                                ? await requestBalanceAction(jobId)
-                                : action === "production-completed" && jobId
-                                  ? await markProductionCompletedAction(jobId)
-                                  : action === "request-review" && jobId
-                                    ? await requestReviewAction(jobId)
-                                    : { ok: false, message: "Missing action data" };
+                  ? await markMockupInDesignAction(leadId)
+                  : action === "mockup-sent" && leadId
+                    ? await markMockupSentAction(leadId)
+                    : action === "ready-for-quote" && leadId
+                      ? await markReadyForQuoteAction(leadId)
+                      : action === "request-missing-assets" && leadId
+                        ? await requestMissingAssetsAction(leadId)
+                        : action === "start-production" && jobId
+                          ? await startProductionAction(jobId)
+                          : action === "design-artwork" && jobId
+                            ? await markDesignArtworkAction(jobId)
+                            : action === "printing-fabrication" && jobId
+                              ? await markPrintingFabricationAction(jobId)
+                              : action === "installed-delivered" && jobId
+                                ? await markInstalledDeliveredAction(jobId)
+                                : action === "request-balance" && jobId
+                                  ? await requestBalanceAction(jobId)
+                                  : action === "production-completed" && jobId
+                                    ? await markProductionCompletedAction(jobId)
+                                    : action === "request-review" && (jobId || proofAssetId)
+                                      ? await requestReviewAction(jobId ?? proofAssetId!)
+                                      : action === "review-received" && proofAssetId
+                                        ? await markReviewReceivedAction(proofAssetId)
+                                        : action === "draft-social-post" && proofAssetId
+                                          ? await draftSocialPostAction(proofAssetId)
+                                          : action === "proof-published" && proofAssetId
+                                            ? await markProofPublishedAction(proofAssetId)
+                                            : action === "ask-referral" && (proofAssetId || leadId)
+                                              ? await askForReferralAction(proofAssetId ?? leadId!)
+                                              : { ok: false, message: "Missing action data" };
 
         if (result.ok) {
           setMessage(result.message ?? "Saved to database");
@@ -102,8 +137,3 @@ export function ActionButton({
     </span>
   );
 }
-
-
-
-
-
