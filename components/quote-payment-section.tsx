@@ -3,12 +3,19 @@ import { PaymentView, ActivityView } from "@/lib/db-data";
 import { Quote } from "@/lib/mock-data";
 import { getPaymentSummary } from "@/lib/payment-intelligence";
 import { currency, formatDate } from "@/lib/utils";
-import { inputClass } from "@/components/ui";
 
-const methods = ["USD_CASH", "ECOCASH", "BANK_TRANSFER", "SWIPE", "CASH", "OTHER"];
+
+const methods = ["CASH", "ECOCASH", "BANK_TRANSFER", "SWIPE", "USD_CASH", "OTHER"];
+
+const paymentInputClass = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-bold text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:bg-slate-100 disabled:text-slate-500 [&:-webkit-autofill]:text-slate-950 [&:-webkit-autofill]:shadow-[inset_0_0_0px_1000px_white]";
+
+function methodLabel(method: string) {
+  return method.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
 export function QuotePaymentSection({ quote, payments = [] }: { quote: Quote; payments?: PaymentView[]; activities?: ActivityView[] }) {
   const summary = getPaymentSummary(quote, payments);
+  const today = new Date().toISOString().slice(0, 10);
 
   return (
     <div className="mt-8 rounded-lg border border-emerald-200 bg-emerald-50 p-5 text-slate-950 print:hidden">
@@ -41,12 +48,12 @@ export function QuotePaymentSection({ quote, payments = [] }: { quote: Quote; pa
 
       <form action={recordPaymentAction} className="mt-5 grid gap-3 md:grid-cols-5">
         <input type="hidden" name="quoteId" value={quote.id} />
-        <label className="text-sm font-bold text-slate-700">Amount<input required name="amount" type="number" min="0.01" step="0.01" className={`${inputClass} mt-2 bg-white text-slate-950`} /></label>
-        <label className="text-sm font-bold text-slate-700">Method<select name="method" className={`${inputClass} mt-2 bg-white text-slate-950`}>{methods.map((method) => <option key={method} value={method}>{method.replaceAll("_", " ")}</option>)}</select></label>
-        <label className="text-sm font-bold text-slate-700">Reference<input name="reference" className={`${inputClass} mt-2 bg-white text-slate-950`} /></label>
-        <label className="text-sm font-bold text-slate-700">Paid at<input name="paidAt" type="date" className={`${inputClass} mt-2 bg-white text-slate-950`} /></label>
-        <label className="text-sm font-bold text-slate-700">Notes<input name="notes" className={`${inputClass} mt-2 bg-white text-slate-950`} /></label>
-        <button type="submit" className="rounded-lg bg-emerald-500 px-4 py-3 text-sm font-black text-white md:col-span-5">Record Payment</button>
+        <label className="text-sm font-bold text-slate-700">Amount<input required name="amount" type="number" min="0" step="0.01" placeholder="0.00" className={`${paymentInputClass} mt-2`} /></label>
+        <label className="text-sm font-bold text-slate-700">Method<select required name="method" defaultValue="" className={`${paymentInputClass} mt-2`}><option value="" disabled>Select method</option>{methods.map((method) => <option key={method} value={method} className="bg-white text-slate-950">{methodLabel(method)}</option>)}</select></label>
+        <label className="text-sm font-bold text-slate-700">Reference<input name="reference" placeholder="Receipt, transaction, or invoice ref" className={`${paymentInputClass} mt-2`} /></label>
+        <label className="text-sm font-bold text-slate-700">Paid at<input name="paidAt" type="date" defaultValue={today} className={`${paymentInputClass} mt-2 [color-scheme:light]`} /></label>
+        <label className="text-sm font-bold text-slate-700">Notes<input name="notes" placeholder="Optional payment note" className={`${paymentInputClass} mt-2`} /></label>
+        <button type="submit" className="rounded-lg bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 md:col-span-5">Record Payment</button>
       </form>
     </div>
   );
