@@ -41,6 +41,10 @@ function priorityClass(priority: string) {
 function ProductionCard({ item }: { item: ProductionBoardItem }) {
   const { job, lead, quote, payments, proofAssets = [] } = item;
   const summary = getProductionSummary(job, quote, payments);
+  const reviewProof = proofAssets.find((proof) => proof.type === "REVIEW_REQUEST");
+  const reviewRequested = job.status === "REVIEW_REQUESTED" || reviewProof?.status === "REQUESTED" || reviewProof?.status === "RECEIVED" || reviewProof?.status === "DRAFTED" || reviewProof?.status === "PUBLISHED";
+  const canComplete = !["COMPLETED", "REVIEW_REQUESTED", "CANCELLED"].includes(job.status);
+  const canRequestReview = !reviewRequested;
 
   return (
     <div className="rounded-lg border border-white/10 bg-obsidian/70 p-4 shadow-glow/20">
@@ -73,8 +77,8 @@ function ProductionCard({ item }: { item: ProductionBoardItem }) {
         <ActionButton action="printing-fabrication" jobId={job.id} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><Hammer size={14} className="inline" /> Mark In Fabrication</ActionButton>
         <ActionButton action="installed-delivered" jobId={job.id} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><Truck size={14} className="inline" /> Mark Installed</ActionButton>
         <ActionButton action="request-balance" jobId={job.id} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><WalletCards size={14} className="inline" /> Request Balance</ActionButton>
-        <ActionButton action="production-completed" jobId={job.id} className="rounded-lg bg-emerald-400 px-3 py-2 text-xs font-black text-obsidian"><CheckCircle2 size={14} className="inline" /> Mark Completed</ActionButton>
-        <ActionButton action="request-review" jobId={job.id} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><MessageCircle size={14} className="inline" /> Request Review</ActionButton>
+        {canComplete ? <ActionButton action="production-completed" jobId={job.id} className="rounded-lg bg-emerald-400 px-3 py-2 text-xs font-black text-obsidian"><CheckCircle2 size={14} className="inline" /> Mark Completed</ActionButton> : null}
+        {canRequestReview ? <ActionButton action="request-review" jobId={job.id} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><MessageCircle size={14} className="inline" /> Request Review</ActionButton> : <Link href="/proof" className="rounded-lg bg-emerald-400/10 px-3 py-2 text-xs font-black text-emerald-200">Review Requested</Link>}
       </div>
 
       <form action={scheduleInstallationAction} className="mt-4 grid gap-2 rounded-lg border border-white/10 bg-white/[0.04] p-3">
@@ -125,4 +129,5 @@ export function ProductionBoard({ items, source = "database" }: ProductionBoardP
     </div>
   );
 }
+
 

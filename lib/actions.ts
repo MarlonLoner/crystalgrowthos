@@ -931,6 +931,36 @@ export async function createQuoteAction(formData: FormData) {
   revalidatePath("/reports/revenue");
   redirect(`/quotes/${quote.id}`);
 }
+const proofStatusRank: Record<ProofStatus, number> = {
+  TODO: 0,
+  REQUESTED: 1,
+  RECEIVED: 2,
+  DRAFTED: 3,
+  PUBLISHED: 4,
+  ARCHIVED: 5
+};
+
+function nextProofStatus(current: ProofStatus, requested?: ProofStatus) {
+  if (!requested) return current;
+  return proofStatusRank[requested] >= proofStatusRank[current] ? requested : current;
+}
+
+async function ensurePendingFollowUp(leadId: string, title: string, note: string, type: FollowUpActivityType, dueAt: Date) {
+  const existing = await prisma.followUpActivity.findFirst({
+    where: { leadId, title, completedAt: null }
+  });
+  if (existing) return existing;
+  return prisma.followUpActivity.create({ data: { leadId, type, title, note, dueAt, completedAt: null } });
+}
+
+async function ensureCompletedActivity(leadId: string, title: string, note: string, type: FollowUpActivityType) {
+  const existing = await prisma.followUpActivity.findFirst({
+    where: { leadId, title, completedAt: { not: null } },
+    orderBy: { createdAt: "desc" }
+  });
+  if (existing) return existing;
+  return prisma.followUpActivity.create({ data: { leadId, type, title, note, completedAt: new Date() } });
+}
 type EnsureProofAssetInput = {
   leadId: string;
   quoteId?: string | null;
@@ -956,7 +986,7 @@ async function ensureProofAssetForJob(input: EnsureProofAssetInput) {
         content: input.content ?? existing.content,
         quoteId: input.quoteId ?? existing.quoteId,
         productionJobId: input.productionJobId ?? existing.productionJobId,
-        status: input.status ?? existing.status
+        status: nextProofStatus(existing.status, input.status)
       }
     });
   }
@@ -1118,71 +1148,121 @@ export async function scheduleInstallationAction(formData: FormData) {
 }
 
 export async function markInstalledDeliveredAction(jobId: string) {
-  const job = await prisma.productionJob.findUnique({ where: { id: jobId }, include: { quote: { include: { payments: true, lineItems: true } } } });
-  if (!job) throw new Error(`Production job not found: ${jobId}`);
-  const paid = job.quote.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
-  const balance = Math.max(Number(job.quote.finalTotal) - paid, 0);
-  const status = balance > 0 ? ProductionStatus.AWAITING_BALANCE : ProductionStatus.INSTALLED_DELIVERED;
-  await updateProductionJobStatus(jobId, status, "Installed / delivered", "Job has been installed or delivered.");
-  if (balance > 0) {
-    await prisma.followUpActivity.create({ data: { leadId: job.leadId, type: FollowUpActivityType.WHATSAPP, title: "Collect balance", note: "Job delivered/installed. Balance remains due.", dueAt: new Date(), completedAt: null } });
+  console.log("[production-action] markInstalledDeliveredAction", { jobId });
+  try {
+    const job = await prisma.productionJob.findUnique({ where: { id: jobId }, include: { quote: { include: { payments: true, lineItems: true } } } });
+    console.log("[production-action] installed resolved job", job ? { id: job.id, status: job.status, leadId: job.leadId, quoteId: job.quoteId } : null);
+    if (!job) return { ok: false, message: `Production job not found: ${jobId}` };
+    const paid = job.quote.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+    const balance = Math.max(Number(job.quote.finalTotal) - paid, 0);
+    const status = balance > 0 ? ProductionStatus.AWAITING_BALANCE : ProductionStatus.INSTALLED_DELIVERED;
+    if (job.status !== status) {
+      await prisma.productionJob.update({ where: { id: jobId }, data: { status } });
+      await ensureCompletedActivity(job.leadId, "Installed / delivered", "Job has been installed or delivered.", FollowUpActivityType.NOTE);
+    }
+    if (balance > 0) {
+      await ensurePendingFollowUp(job.leadId, "Collect balance", "Job delivered/installed. Balance remains due.", FollowUpActivityType.WHATSAPP, new Date());
+    }
+    revalidateProductionRoutes(job.leadId, job.quoteId);
+    return { ok: true, message: "Installed / delivered", balance };
+  } catch (error) {
+    console.error("[production-action] markInstalledDeliveredAction failed", { jobId, error });
+    return { ok: false, message: error instanceof Error ? error.message : "Unable to mark installed" };
   }
-  revalidateProductionRoutes(job.leadId, job.quoteId);
-  return { ok: true, message: "Installed / delivered", balance };
 }
-
 export async function requestBalanceAction(jobId: string) {
-  const job = await prisma.productionJob.findUnique({ where: { id: jobId } });
-  if (!job) throw new Error(`Production job not found: ${jobId}`);
-  await prisma.productionJob.update({ where: { id: jobId }, data: { status: ProductionStatus.AWAITING_BALANCE } });
-  await prisma.followUpActivity.create({ data: { leadId: job.leadId, type: FollowUpActivityType.WHATSAPP, title: "Collect balance", note: "Job delivered/installed. Balance remains due.", dueAt: new Date(), completedAt: null } });
-  revalidateProductionRoutes(job.leadId, job.quoteId);
-  return { ok: true, message: "Balance requested" };
+  console.log("[production-action] requestBalanceAction", { jobId });
+  try {
+    const job = await prisma.productionJob.findUnique({ where: { id: jobId } });
+    console.log("[production-action] balance resolved job", job ? { id: job.id, status: job.status, leadId: job.leadId, quoteId: job.quoteId } : null);
+    if (!job) return { ok: false, message: `Production job not found: ${jobId}` };
+    if (job.status !== ProductionStatus.AWAITING_BALANCE) {
+      await prisma.productionJob.update({ where: { id: jobId }, data: { status: ProductionStatus.AWAITING_BALANCE } });
+    }
+    await ensurePendingFollowUp(job.leadId, "Collect balance", "Job delivered/installed. Balance remains due.", FollowUpActivityType.WHATSAPP, new Date());
+    revalidateProductionRoutes(job.leadId, job.quoteId);
+    return { ok: true, message: "Balance requested" };
+  } catch (error) {
+    console.error("[production-action] requestBalanceAction failed", { jobId, error });
+    return { ok: false, message: error instanceof Error ? error.message : "Unable to request balance" };
+  }
 }
-
 export async function markProductionCompletedAction(jobId: string) {
-  const result = await updateProductionJobStatus(jobId, ProductionStatus.COMPLETED, "Production completed", "Production job has been completed.");
-  const { job } = await ensureDefaultProofAssetsForCompletedJob(jobId);
-  const due = tomorrow();
-  const existingTasks = await prisma.followUpActivity.findMany({
-    where: { leadId: job.leadId, title: { in: ["Request review", "Create before/after content", "Ask for referral"] }, completedAt: null }
-  });
-  const existingTitles = new Set(existingTasks.map((task) => task.title));
-  if (!existingTitles.has("Request review")) {
-    await prisma.followUpActivity.create({
-      data: { leadId: job.leadId, type: FollowUpActivityType.WHATSAPP, title: "Request review", note: "Ask client for review/testimonial after completed work.", dueAt: due, completedAt: null }
-    });
-  }
-  if (!existingTitles.has("Create before/after content")) {
-    await prisma.followUpActivity.create({
-      data: { leadId: job.leadId, type: FollowUpActivityType.NOTE, title: "Create before/after content", note: "Use completed work as marketing content.", dueAt: due, completedAt: null }
-    });
-  }
-  if (!existingTitles.has("Ask for referral")) {
-    await prisma.followUpActivity.create({
-      data: { leadId: job.leadId, type: FollowUpActivityType.WHATSAPP, title: "Ask for referral", note: "Ask the happy client to refer another business.", dueAt: due, completedAt: null }
-    });
-  }
-  revalidateProductionRoutes(job.leadId, job.quoteId);
-  revalidatePath("/proof");
-  return result;
-}
+  console.log("[production-action] markProductionCompletedAction", { jobId });
+  try {
+    if (!jobId) return { ok: false, message: "Missing job id" };
+    const existingJob = await prisma.productionJob.findUnique({ where: { id: jobId } });
+    console.log("[production-action] mark completed resolved job", existingJob ? { id: existingJob.id, status: existingJob.status, leadId: existingJob.leadId, quoteId: existingJob.quoteId } : null);
+    if (!existingJob) return { ok: false, message: `Production job not found: ${jobId}` };
 
-export async function requestReviewAction(id: string) {
-  const job = await prisma.productionJob.findUnique({ where: { id } });
-  if (job) {
-    await ensureDefaultProofAssetsForCompletedJob(job.id);
-    await prisma.productionJob.update({ where: { id: job.id }, data: { status: ProductionStatus.REVIEW_REQUESTED } });
-    await prisma.proofAsset.updateMany({ where: { productionJobId: job.id, type: ProofAssetType.REVIEW_REQUEST }, data: { status: ProofStatus.REQUESTED } });
-    await prisma.followUpActivity.create({ data: { leadId: job.leadId, type: FollowUpActivityType.WHATSAPP, title: "Review requested", note: "Asked client for a review/testimonial after completed work.", completedAt: new Date() } });
+    if (existingJob.status !== ProductionStatus.COMPLETED && existingJob.status !== ProductionStatus.REVIEW_REQUESTED) {
+      console.log("[production-action] updating job status to COMPLETED", { jobId });
+      await prisma.productionJob.update({ where: { id: jobId }, data: { status: ProductionStatus.COMPLETED } });
+      await ensureCompletedActivity(existingJob.leadId, "Production completed", "Production job has been completed.", FollowUpActivityType.NOTE);
+    }
+
+    const { job } = await ensureDefaultProofAssetsForCompletedJob(jobId);
+    const due = tomorrow();
+    await ensurePendingFollowUp(job.leadId, "Request review", "Ask client for review/testimonial after completed work.", FollowUpActivityType.WHATSAPP, due);
+    await ensurePendingFollowUp(job.leadId, "Create before/after content", "Use completed work as marketing content.", FollowUpActivityType.NOTE, due);
+    await ensurePendingFollowUp(job.leadId, "Ask for referral", "Ask the happy client to refer another business.", FollowUpActivityType.WHATSAPP, due);
+
     revalidateProductionRoutes(job.leadId, job.quoteId);
     revalidatePath("/proof");
-    return { ok: true, message: "Review requested" };
+    return { ok: true, message: existingJob.status === ProductionStatus.REVIEW_REQUESTED ? "Proof workflow already active" : "Proof workflow activated", jobId };
+  } catch (error) {
+    console.error("[production-action] markProductionCompletedAction failed", { jobId, error });
+    return { ok: false, message: error instanceof Error ? error.message : "Unable to complete production job" };
   }
-
-  return updateProofAssetStatus(id, ProofStatus.REQUESTED, "Review requested", "Asked client for a review/testimonial after completed work.", FollowUpActivityType.WHATSAPP);
 }
+export async function requestReviewAction(id: string) {
+  console.log("[production-action] requestReviewAction", { id });
+  try {
+    if (!id) return { ok: false, message: "Missing job or proof id" };
+    const job = await prisma.productionJob.findUnique({ where: { id } });
+    if (job) {
+      console.log("[production-action] request review resolved job", { id: job.id, status: job.status, leadId: job.leadId, quoteId: job.quoteId });
+      await ensureDefaultProofAssetsForCompletedJob(job.id);
+      const reviewProof = await ensureProofAssetForJob({
+        leadId: job.leadId,
+        quoteId: job.quoteId,
+        productionJobId: job.id,
+        type: ProofAssetType.REVIEW_REQUEST,
+        title: "Request client review",
+        content: "Ask client for a Google review or WhatsApp testimonial.",
+        status: ProofStatus.REQUESTED
+      });
+      if (job.status !== ProductionStatus.REVIEW_REQUESTED) {
+        console.log("[production-action] updating job status to REVIEW_REQUESTED", { jobId: job.id });
+        await prisma.productionJob.update({ where: { id: job.id }, data: { status: ProductionStatus.REVIEW_REQUESTED } });
+      }
+      await ensureCompletedActivity(job.leadId, "Review requested", "Asked client for a review/testimonial after completed work.", FollowUpActivityType.WHATSAPP);
+      revalidateProductionRoutes(job.leadId, job.quoteId);
+      revalidatePath("/proof");
+      return { ok: true, message: reviewProof.status === ProofStatus.REQUESTED ? "Review already requested" : "Review requested", proofAssetId: reviewProof.id };
+    }
 
+    const proof = await prisma.proofAsset.findUnique({ where: { id } });
+    console.log("[production-action] request review resolved proof", proof ? { id: proof.id, type: proof.type, status: proof.status, leadId: proof.leadId, quoteId: proof.quoteId, productionJobId: proof.productionJobId } : null);
+    if (!proof) return { ok: false, message: `Production job or proof asset not found: ${id}` };
+    const updated = await ensureProofAssetForJob({
+      leadId: proof.leadId,
+      quoteId: proof.quoteId,
+      productionJobId: proof.productionJobId,
+      type: proof.type,
+      title: proof.title,
+      content: proof.content,
+      status: ProofStatus.REQUESTED
+    });
+    await ensureCompletedActivity(proof.leadId, "Review requested", "Asked client for a review/testimonial after completed work.", FollowUpActivityType.WHATSAPP);
+    revalidateProductionRoutes(proof.leadId, proof.quoteId ?? undefined);
+    revalidatePath("/proof");
+    return { ok: true, message: updated.status === ProofStatus.REQUESTED ? "Review already requested" : "Review requested", proofAssetId: updated.id };
+  } catch (error) {
+    console.error("[production-action] requestReviewAction failed", { id, error });
+    return { ok: false, message: error instanceof Error ? error.message : "Unable to request review" };
+  }
+}
 export async function markReviewReceivedAction(proofAssetId: string) {
   const result = await updateProofAssetStatus(proofAssetId, ProofStatus.RECEIVED, "Review received", "Client review/testimonial was received.");
   const proof = await prisma.proofAsset.findUnique({ where: { id: proofAssetId }, include: { lead: true, quote: { include: { lineItems: true } }, productionJob: true } });
@@ -1607,6 +1687,13 @@ export async function scheduleFollowUpTomorrowAction(quoteId: string) {
     };
   }
 }
+
+
+
+
+
+
+
 
 
 
