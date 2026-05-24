@@ -3,7 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
+  archiveContentPostAction,
   askForReferralAction,
+  createContentDraftFromProofAction,
   completeFollowUpActivityAction,
   draftSocialPostAction,
   markDesignArtworkAction,
@@ -21,6 +23,8 @@ import {
   requestReviewAction,
   scheduleFollowUpTomorrowAction,
   startProductionAction,
+  markContentPublishedAction,
+  markContentReadyAction,
   updateQuoteStatusAction
 } from "@/lib/actions";
 
@@ -43,7 +47,11 @@ type ActionKind =
   | "review-received"
   | "draft-social-post"
   | "proof-published"
-  | "ask-referral";
+  | "ask-referral"
+  | "create-content-draft"
+  | "content-ready"
+  | "content-published"
+  | "content-archived";
 
 export function ActionButton({
   children,
@@ -55,7 +63,8 @@ export function ActionButton({
   action,
   quoteStatus,
   jobId,
-  proofAssetId
+  proofAssetId,
+  contentPostId
 }: {
   children: React.ReactNode;
   className: string;
@@ -67,6 +76,7 @@ export function ActionButton({
   quoteStatus?: "SENT" | "VIEWED" | "ACCEPTED" | "REJECTED" | "PAID";
   jobId?: string;
   proofAssetId?: string;
+  contentPostId?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -114,7 +124,15 @@ export function ActionButton({
                                             ? await markProofPublishedAction(proofAssetId)
                                             : action === "ask-referral" && (proofAssetId || leadId)
                                               ? await askForReferralAction(proofAssetId ?? leadId!)
-                                              : { ok: false, message: "Missing action data" };
+                                              : action === "create-content-draft" && proofAssetId
+                                                ? await createContentDraftFromProofAction(proofAssetId)
+                                                : action === "content-ready" && contentPostId
+                                                  ? await markContentReadyAction(contentPostId)
+                                                  : action === "content-published" && contentPostId
+                                                    ? await markContentPublishedAction(contentPostId)
+                                                    : action === "content-archived" && contentPostId
+                                                      ? await archiveContentPostAction(contentPostId)
+                                                      : { ok: false, message: "Missing action data" };
 
         if (result.ok) {
           setMessage(result.message ?? "Saved to database");
@@ -122,8 +140,8 @@ export function ActionButton({
         } else {
           setMessage(`Failed to save: ${"error" in result ? result.error : result.message ?? "Unknown error"}`);
         }
-      } catch {
-        setMessage("Action failed. Check database connection and try again.");
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Action failed. Please try again.");
       }
     });
   }
@@ -137,4 +155,6 @@ export function ActionButton({
     </span>
   );
 }
+
+
 

@@ -4,7 +4,7 @@ import { ActionButton } from "@/components/action-button";
 import { WhatsAppAction } from "@/components/whatsapp-action";
 import { WhatsAppScriptGenerator } from "@/components/whatsapp-script-generator";
 import { buttonClass, Panel, SectionHeading } from "@/components/ui";
-import { ActivityView, LeadAssetView, PaymentView, ProductionJobView, ProofAssetView } from "@/lib/db-data";
+import { ActivityView, ContentPostView, LeadAssetView, PaymentView, ProductionJobView, ProofAssetView } from "@/lib/db-data";
 import { Lead, Quote, quoteFinalTotal } from "@/lib/mock-data";
 import { inferMockupWorkflow, isMockupRelatedLead } from "@/lib/mockup-workflow";
 import { generateWhatsAppScript } from "@/lib/scripts";
@@ -33,7 +33,8 @@ export function LeadDetail({
   assets = [],
   payments = [],
   productionJobs = [],
-  proofAssets = []
+  proofAssets = [],
+  contentPosts = []
 }: {
   lead: Lead;
   relatedQuotes: Quote[];
@@ -42,6 +43,7 @@ export function LeadDetail({
   payments?: PaymentView[];
   productionJobs?: ProductionJobView[];
   proofAssets?: ProofAssetView[];
+  contentPosts?: ContentPostView[];
 }) {
   const message = generateWhatsAppScript(lead.status === "Lost" ? "dead-lead-revival" : lead.status === "Won" ? "review-request" : "quote-follow-up", lead);
   const mockupWorkflow = inferMockupWorkflow(lead, assets, activities, relatedQuotes);
@@ -187,7 +189,26 @@ export function LeadDetail({
               }) : <p className="text-sm text-mercury">No production jobs yet. Jobs are created automatically when deposit threshold is reached.</p>}
             </div>
           </Panel>
-<Panel>
+          <Panel>
+            <SectionHeading eyebrow="Content History" title="Publishing queue" description="Social proof content linked to this lead from reviews, before/after posts, referrals, and completed work." />
+            <div className="space-y-3">
+              {contentPosts.length ? contentPosts.map((post) => (
+                <div key={post.id} className="rounded-lg border border-white/10 bg-obsidian/60 p-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="font-black text-white">{post.title}</p>
+                      <p className="mt-1 text-xs text-mercury">{post.platform.replaceAll("_", " ")} - {post.format.replaceAll("_", " ")}</p>
+                    </div>
+                    <span className="rounded-lg bg-aurum/10 px-2.5 py-1 text-xs font-black text-aurum">{post.status}</span>
+                  </div>
+                  <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-200">{post.caption}</p>
+                  <p className="mt-2 text-xs text-slate-500">Scheduled {formatDate(post.scheduledAt)} - Published {formatDate(post.publishedAt)}</p>
+                  <Link href="/content-calendar" className="mt-3 inline-flex rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white">Open Content Calendar</Link>
+                </div>
+              )) : <p className="text-sm text-mercury">No content posts linked to this lead yet.</p>}
+            </div>
+          </Panel>
+          <Panel>
             <SectionHeading eyebrow="Activity Timeline" title="Follow-up activities" description="Real activity records for this lead, including pending, completed, and overdue work." />
             <div className="space-y-3">
               {activities.length ? activities.map((activity) => {
@@ -224,6 +245,8 @@ export function LeadDetail({
     </div>
   );
 }
+
+
 
 
 

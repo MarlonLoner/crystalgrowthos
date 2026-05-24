@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { CheckCircle2, MessageCircle, PenLine, Send, Share2 } from "lucide-react";
+import { CheckCircle2, FilePlus2, MessageCircle, PenLine, Send, Share2 } from "lucide-react";
 import { ActionButton } from "@/components/action-button";
 import { Panel, SectionHeading } from "@/components/ui";
-import type { ProofAssetView, ProductionJobView } from "@/lib/db-data";
+import type { ContentPostView, ProofAssetView, ProductionJobView } from "@/lib/db-data";
 import type { Lead, Quote } from "@/lib/mock-data";
 import { generateProofContentDrafts } from "@/lib/proof-content";
 import { getProofSummary, proofStatusLabel, proofTypeLabel } from "@/lib/proof-intelligence";
@@ -12,6 +12,7 @@ export type ProofBoardItem = {
   lead: Lead;
   quote: Quote | null;
   productionJob: ProductionJobView | null;
+  contentPosts?: ContentPostView[];
 };
 
 type ProofBoardProps = {
@@ -29,7 +30,7 @@ const columns = [
 ] as const;
 
 function ProofCard({ item }: { item: ProofBoardItem }) {
-  const { proof, lead, quote, productionJob } = item;
+  const { proof, lead, quote, productionJob, contentPosts = [] } = item;
   const summary = getProofSummary({ lead, quote, job: productionJob, proofAssets: [proof] });
   const drafts = generateProofContentDrafts({ lead, quote, job: productionJob });
 
@@ -48,6 +49,7 @@ function ProofCard({ item }: { item: ProofBoardItem }) {
         <span>Score: <b className="text-white">{summary.contentOpportunityScore}</b></span>
         <span className="col-span-2">Job: <b className="text-white">{productionJob?.title ?? "No job linked"}</b></span>
         <span className="col-span-2">Quote: <b className="text-white">{quote?.quoteNumber ?? "No quote linked"}</b></span>
+        <span className="col-span-2">Content posts: <b className="text-white">{contentPosts.length ? `${contentPosts.length} (${contentPosts[0].status})` : "None yet"}</b></span>
       </div>
 
       <p className="mt-3 rounded-lg border border-white/10 bg-white/[0.04] p-3 text-sm leading-6 text-slate-200">{summary.suggestedNextAction}</p>
@@ -65,6 +67,8 @@ function ProofCard({ item }: { item: ProofBoardItem }) {
         <ActionButton action="request-review" proofAssetId={proof.id} className="rounded-lg bg-aurum px-3 py-2 text-xs font-black text-obsidian"><MessageCircle size={14} className="inline" /> Request Review</ActionButton>
         <ActionButton action="review-received" proofAssetId={proof.id} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><CheckCircle2 size={14} className="inline" /> Mark Review Received</ActionButton>
         <ActionButton action="draft-social-post" proofAssetId={proof.id} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><PenLine size={14} className="inline" /> Draft Social Post</ActionButton>
+        <ActionButton action="create-content-draft" proofAssetId={proof.id} className="rounded-lg bg-aurum px-3 py-2 text-xs font-black text-obsidian"><FilePlus2 size={14} className="inline" /> Create Content Draft</ActionButton>
+        {contentPosts.length ? <Link href="/content-calendar" className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white">Open Content</Link> : null}
         <ActionButton action="proof-published" proofAssetId={proof.id} className="rounded-lg bg-emerald-400 px-3 py-2 text-xs font-black text-obsidian"><Send size={14} className="inline" /> Mark Published</ActionButton>
         <ActionButton action="ask-referral" proofAssetId={proof.id} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><Share2 size={14} className="inline" /> Ask for Referral</ActionButton>
       </div>
@@ -107,3 +111,5 @@ export function ProofBoard({ items, source = "database" }: ProofBoardProps) {
     </div>
   );
 }
+
+

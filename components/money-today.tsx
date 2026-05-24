@@ -6,10 +6,11 @@ import { useMemo, useState } from "react";
 import { getAiRevenueBrief, getMoneyActionItems, getRevenueMetrics, Priority } from "@/lib/revenue-intelligence";
 import { getMockupWorkflowItems } from "@/lib/mockup-workflow";
 import { Lead, Quote } from "@/lib/mock-data";
-import type { ActivityView, LeadAssetView, PaymentView, ProductionJobView, ProofAssetView } from "@/lib/db-data";
+import type { ActivityView, ContentPostView, LeadAssetView, PaymentView, ProductionJobView, ProofAssetView } from "@/lib/db-data";
 import { getPaymentSummary } from "@/lib/payment-intelligence";
 import { getProductionSummary } from "@/lib/production-intelligence";
 import { getProofSummary } from "@/lib/proof-intelligence";
+import { getContentSummary } from "@/lib/content-intelligence";
 import { currency, formatDate } from "@/lib/utils";
 import { WhatsAppAction } from "@/components/whatsapp-action";
 import { ActionButton } from "@/components/action-button";
@@ -33,9 +34,10 @@ type MoneyTodayProps = {
   payments?: PaymentView[];
   productionJobs?: ProductionJobView[];
   proofAssets?: ProofAssetView[];
+  contentPosts?: ContentPostView[];
 };
 
-export function MoneyToday({ leads = [], quotes = [], activities = [], assets = [], payments = [], productionJobs = [], proofAssets = [] }: MoneyTodayProps) {
+export function MoneyToday({ leads = [], quotes = [], activities = [], assets = [], payments = [], productionJobs = [], proofAssets = [], contentPosts = [] }: MoneyTodayProps) {
   const [done, setDone] = useState<string[]>([]);
   const items = useMemo(() => getMoneyActionItems(leads, quotes).filter((item) => !done.includes(item.id)), [leads, quotes, done]);
   const mockupItems = useMemo(() => getMockupWorkflowItems(leads, assets, activities, quotes).filter((item) => !done.includes(`mockup-${item.lead.id}`)), [leads, assets, activities, quotes, done]);
@@ -53,6 +55,14 @@ export function MoneyToday({ leads = [], quotes = [], activities = [], assets = 
     const quote = proof.quoteId ? quotes.find((item) => item.id === proof.quoteId) ?? null : null;
     return { proof, lead, job, quote, summary: getProofSummary({ lead, job, quote, proofAssets: [proof] }) };
   }).filter((item): item is NonNullable<typeof item> => item !== null), [proofAssets, leads, productionJobs, quotes]);
+  const contentItems = useMemo(() => contentPosts.map((post) => {
+    const lead = post.leadId ? leads.find((item) => item.id === post.leadId) ?? null : null;
+    if (post.status === "PUBLISHED" || post.status === "ARCHIVED") return null;
+    const summary = getContentSummary(post);
+    const scheduled = post.scheduledAt ? new Date(post.scheduledAt) : null;
+    const isDue = post.status !== "SCHEDULED" || !scheduled || scheduled <= new Date();
+    return isDue ? { post, lead, summary } : null;
+  }).filter((item): item is NonNullable<typeof item> => item !== null), [contentPosts, leads]);
   const metrics = getRevenueMetrics(leads, quotes, activities);
   const brief = getAiRevenueBrief(leads, quotes);
 
@@ -143,6 +153,33 @@ export function MoneyToday({ leads = [], quotes = [], activities = [], assets = 
             </div>
           ))}
           {proofItems.length === 0 ? <p className="text-sm text-mercury">No review or content actions waiting right now.</p> : null}
+        </div>
+      </Panel>
+      <Panel>
+        <SectionHeading
+          eyebrow="Content Publishing Actions"
+          title={`${contentItems.length} content posts need movement`}
+          description="Proof-driven drafts, ready posts, and scheduled posts that can be published to keep Crystal visible."
+        />
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+          {contentItems.map(({ post, lead, summary }) => (
+            <div key={post.id} className="rounded-lg border border-white/10 bg-obsidian/60 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-black text-white">{post.title}</p>
+                  <p className="mt-1 text-xs text-mercury">{lead?.businessName ?? "No lead linked"} - {post.platform.replaceAll("_", " ")}</p>
+                </div>
+                <span className="rounded-lg bg-aurum/10 px-2 py-1 text-xs font-black text-aurum">{post.status}</span>
+              </div>
+              <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-200">{post.caption}</p>
+              <p className="mt-3 text-xs font-bold text-aurum">{summary.suggestedNextAction}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {lead ? <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/leads/${lead.id}`}>View Lead</Link> : null}
+                <Link className="rounded-lg bg-aurum px-3 py-2 text-xs font-black text-obsidian" href="/content-calendar">Open Content Calendar</Link>
+              </div>
+            </div>
+          ))}
+          {contentItems.length === 0 ? <p className="text-sm text-mercury">No content publishing actions waiting right now.</p> : null}
         </div>
       </Panel>
       <Panel className="border-aurum/20 bg-aurum/10">
@@ -238,6 +275,8 @@ export function MoneyToday({ leads = [], quotes = [], activities = [], assets = 
     </div>
   );
 }
+
+
 
 
 

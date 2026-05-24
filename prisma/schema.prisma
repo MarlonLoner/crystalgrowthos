@@ -44,6 +44,7 @@ model Lead {
   payments            Payment[]
   productionJobs      ProductionJob[]
   proofAssets         ProofAsset[]
+  contentPosts        ContentPost[]
 }
 
 model ContentBrief {
@@ -116,6 +117,7 @@ model Quote {
   payments        Payment[]
   productionJob   ProductionJob?
   proofAssets     ProofAsset[]
+  contentPosts    ContentPost[]
 }
 
 model QuoteLineItem {
@@ -157,6 +159,7 @@ model ProductionJob {
   quote            Quote              @relation(fields: [quoteId], references: [id], onDelete: Cascade)
   lead             Lead               @relation(fields: [leadId], references: [id], onDelete: Cascade)
   proofAssets      ProofAsset[]
+  contentPosts     ContentPost[]
 }
 model ProofAsset {
   id              String           @id @default(cuid())
@@ -173,6 +176,29 @@ model ProofAsset {
   lead            Lead             @relation(fields: [leadId], references: [id], onDelete: Cascade)
   quote           Quote?           @relation(fields: [quoteId], references: [id], onDelete: SetNull)
   productionJob   ProductionJob?   @relation(fields: [productionJobId], references: [id], onDelete: SetNull)
+  contentPosts    ContentPost[]
+}
+model ContentPost {
+  id              String          @id @default(cuid())
+  proofAssetId    String?
+  leadId          String?
+  quoteId         String?
+  productionJobId String?
+  title           String
+  platform        ContentPlatform @default(FACEBOOK)
+  format          ContentFormat   @default(COMPLETED_PROJECT)
+  status          ContentStatus   @default(IDEA)
+  caption         String
+  mediaUrl        String?
+  scheduledAt     DateTime?
+  publishedAt     DateTime?
+  notes           String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  proofAsset      ProofAsset?     @relation(fields: [proofAssetId], references: [id], onDelete: SetNull)
+  lead            Lead?           @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  quote           Quote?          @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  productionJob   ProductionJob?  @relation(fields: [productionJobId], references: [id], onDelete: SetNull)
 }
 model FollowUpActivity {
   id          String               @id @default(cuid())
@@ -265,6 +291,34 @@ enum ProofStatus {
   PUBLISHED
   ARCHIVED
 }
+enum ContentPlatform {
+  FACEBOOK
+  INSTAGRAM
+  WHATSAPP_STATUS
+  LINKEDIN
+  TIKTOK
+  WEBSITE
+  OTHER
+}
+
+enum ContentFormat {
+  BEFORE_AFTER
+  TESTIMONIAL
+  CASE_STUDY
+  COMPLETED_PROJECT
+  OFFER
+  EDUCATIONAL
+  OTHER
+}
+
+enum ContentStatus {
+  IDEA
+  DRAFTED
+  READY
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
 enum PaymentMethod {
   CASH
   ECOCASH
@@ -292,6 +346,7 @@ model LeadAsset {
   notes       String?
   createdAt   DateTime      @default(now())
 }
+
 
 
 

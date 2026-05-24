@@ -1,10 +1,11 @@
 "use server";
 
-import { FollowUpActivityType, LeadStatus, PaymentMethod, Prisma, ProductionPriority, ProductionStatus, ProofAssetType, ProofStatus, QuoteStatus } from "@prisma/client";
+import { ContentFormat, ContentPlatform, ContentStatus, FollowUpActivityType, LeadStatus, PaymentMethod, Prisma, ProductionPriority, ProductionStatus, ProofAssetType, ProofStatus, QuoteStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { generateProofContentDrafts } from "@/lib/proof-content";
+import { captionForProof } from "@/lib/content-templates";
 
 const leadStatusMap: Record<string, LeadStatus> = {
   "New Lead": LeadStatus.NEW_LEAD,
@@ -1414,6 +1415,190 @@ export async function askForReferralAction(id: string) {
   revalidatePath("/proof");
   return { ok: true, message: "Referral requested", proofAssetId: created.id };
 }
+function normalizeContentPlatform(value?: string | null) {
+  const key = String(value ?? "FACEBOOK").trim().toUpperCase().replaceAll(" ", "_").replaceAll("-", "_");
+  return (ContentPlatform as Record<string, ContentPlatform>)[key] ?? ContentPlatform.FACEBOOK;
+}
+
+function normalizeContentFormat(value?: string | null, proofType?: ProofAssetType | string) {
+  const key = String(value ?? proofType ?? "COMPLETED_PROJECT").trim().toUpperCase().replaceAll(" ", "_").replaceAll("-", "_");
+  if (key === "REVIEW_REQUEST") return ContentFormat.TESTIMONIAL;
+  if (key === "REFERRAL_REQUEST") return ContentFormat.TESTIMONIAL;
+  if (key === "SOCIAL_POST") return ContentFormat.COMPLETED_PROJECT;
+  return (ContentFormat as Record<string, ContentFormat>)[key] ?? ContentFormat.COMPLETED_PROJECT;
+}
+
+function revalidateContentRoutes(leadId?: string | null) {
+  ["/", "/content-calendar", "/proof", "/money-today", "/leads", "/follow-ups"].forEach((path) => revalidatePath(path));
+  if (leadId) revalidatePath(`/leads/${leadId}`);
+}
+
+async function createContentActivity(leadId: string | null | undefined, title: string, note: string) {
+  if (!leadId) return null;
+  return prisma.followUpActivity.create({
+    data: {
+      leadId,
+      type: FollowUpActivityType.NOTE,
+      title,
+      note,
+      completedAt: new Date()
+    }
+  });
+}
+
+export async function createContentDraftFromProofAction(proofAssetId: string, platformValue = "FACEBOOK", formatValue?: string) {
+  try {
+    if (!proofAssetId) return { ok: false, message: "Missing proof asset id" };
+    const proof = await prisma.proofAsset.findUnique({
+      where: { id: proofAssetId },
+      include: {
+        lead: true,
+        quote: { include: { lineItems: true } },
+        productionJob: true,
+        contentPosts: { orderBy: { updatedAt: "desc" } }
+      }
+    });
+    if (!proof) return { ok: false, message: `Proof asset not found: ${proofAssetId}` };
+
+    const platform = normalizeContentPlatform(platformValue);
+    const format = normalizeContentFormat(formatValue, proof.type);
+    const lead = {
+      id: proof.lead.id,
+      name: proof.lead.name,
+      phone: proof.lead.phone,
+      email: proof.lead.email,
+      businessName: proof.lead.businessName,
+      businessType: proof.lead.businessType,
+      source: proof.lead.source,
+      serviceInterestedIn: proof.lead.serviceInterestedIn,
+      status: proof.lead.status,
+      dealValue: Number(proof.lead.dealValue),
+      estimatedDealValue: Number(proof.lead.estimatedDealValue ?? proof.lead.dealValue),
+      birthday: "",
+      notes: proof.lead.notes ?? "",
+      createdAt: "",
+      lastContactedAt: null,
+      nextFollowUpDate: ""
+    };
+    const quote = proof.quote ? {
+      id: proof.quote.id,
+      leadId: proof.quote.leadId,
+      clientName: proof.quote.clientName,
+      businessName: proof.quote.businessName,
+      quoteNumber: proof.quote.quoteNumber,
+      serviceCategory: proof.quote.serviceCategory,
+      lineItems: proof.quote.lineItems.map((item) => ({ id: item.id, description: item.description, quantity: item.quantity, unitPrice: Number(item.unitPrice) })),
+      discount: Number(proof.quote.discount),
+      status: proof.quote.status,
+      notes: proof.quote.notes ?? "",
+      terms: proof.quote.terms ?? "",
+      createdAt: "",
+      expiryDate: ""
+    } : null;
+    const job = proof.productionJob ? {
+      id: proof.productionJob.id,
+      quoteId: proof.productionJob.quoteId,
+      leadId: proof.productionJob.leadId,
+      title: proof.productionJob.title,
+      status: proof.productionJob.status,
+      priority: proof.productionJob.priority,
+      dueDate: proof.productionJob.dueDate?.toISOString().slice(0, 10) ?? null,
+      installationDate: proof.productionJob.installationDate?.toISOString().slice(0, 10) ?? null,
+      notes: proof.productionJob.notes ?? "",
+      createdAt: "",
+      updatedAt: ""
+    } : null;
+    const caption = captionForProof({ lead, quote, job, proof: { type: proof.type, title: proof.title, content: proof.content ?? "" } }, format);
+    const existing = proof.contentPosts.find((post) => post.status !== ContentStatus.ARCHIVED && post.platform === platform && post.format === format);
+    const post = existing
+      ? await prisma.contentPost.update({
+          where: { id: existing.id },
+          data: { title: existing.title, caption, status: ContentStatus.DRAFTED, notes: "Refreshed from Proof Engine." }
+        })
+      : await prisma.contentPost.create({
+          data: {
+            proofAssetId: proof.id,
+            leadId: proof.leadId,
+            quoteId: proof.quoteId,
+            productionJobId: proof.productionJobId,
+            title: `${proof.lead.businessName} ${format.toLowerCase().replaceAll("_", " ")}`,
+            platform,
+            format,
+            status: ContentStatus.DRAFTED,
+            caption,
+            mediaUrl: proof.url || null,
+            notes: "Created from Proof Engine."
+          }
+        });
+
+    await prisma.proofAsset.update({ where: { id: proof.id }, data: { status: nextProofStatus(proof.status, ProofStatus.DRAFTED) } });
+    await createContentActivity(proof.leadId, "Content draft created", "A social proof content draft was created from completed work.");
+    revalidateContentRoutes(proof.leadId);
+    return { ok: true, message: existing ? "Content draft refreshed" : "Content draft created", contentPostId: post.id };
+  } catch (error) {
+    console.error("[content-action] createContentDraftFromProofAction failed", { proofAssetId, error });
+    return { ok: false, message: error instanceof Error ? error.message : "Unable to create content draft" };
+  }
+}
+
+export async function markContentReadyAction(postId: string) {
+  try {
+    if (!postId) return { ok: false, message: "Missing content post id" };
+    const post = await prisma.contentPost.update({ where: { id: postId }, data: { status: ContentStatus.READY } });
+    await createContentActivity(post.leadId, "Content ready to post", `Content post "${post.title}" is ready to publish.`);
+    revalidateContentRoutes(post.leadId);
+    return { ok: true, message: "Content marked ready", contentPostId: post.id };
+  } catch (error) {
+    console.error("[content-action] markContentReadyAction failed", { postId, error });
+    return { ok: false, message: error instanceof Error ? error.message : "Unable to mark content ready" };
+  }
+}
+
+export async function scheduleContentPostAction(formData: FormData) {
+  try {
+    const postId = requiredString(formData, "postId");
+    const scheduledAt = optionalDate(formData.get("scheduledAt"));
+    const notes = requiredString(formData, "notes");
+    if (!postId) throw new Error("Content post is required.");
+    if (!scheduledAt) throw new Error("Schedule date is required.");
+    const post = await prisma.contentPost.update({
+      where: { id: postId },
+      data: { status: ContentStatus.SCHEDULED, scheduledAt, notes: notes || undefined }
+    });
+    await createContentActivity(post.leadId, "Content scheduled", `Content post "${post.title}" was scheduled for ${scheduledAt.toISOString().slice(0, 10)}.`);
+    revalidateContentRoutes(post.leadId);
+  } catch (error) {
+    console.error("[content-action] scheduleContentPostAction failed", error);
+    throw error;
+  }
+}
+
+export async function markContentPublishedAction(postId: string) {
+  try {
+    if (!postId) return { ok: false, message: "Missing content post id" };
+    const post = await prisma.contentPost.update({ where: { id: postId }, data: { status: ContentStatus.PUBLISHED, publishedAt: new Date() } });
+    if (post.proofAssetId) await prisma.proofAsset.update({ where: { id: post.proofAssetId }, data: { status: ProofStatus.PUBLISHED } });
+    await createContentActivity(post.leadId, "Content published", `Content post "${post.title}" was published.`);
+    revalidateContentRoutes(post.leadId);
+    return { ok: true, message: "Content marked published", contentPostId: post.id };
+  } catch (error) {
+    console.error("[content-action] markContentPublishedAction failed", { postId, error });
+    return { ok: false, message: error instanceof Error ? error.message : "Unable to publish content" };
+  }
+}
+
+export async function archiveContentPostAction(postId: string) {
+  try {
+    if (!postId) return { ok: false, message: "Missing content post id" };
+    const post = await prisma.contentPost.update({ where: { id: postId }, data: { status: ContentStatus.ARCHIVED } });
+    await createContentActivity(post.leadId, "Content archived", `Content post "${post.title}" was archived.`);
+    revalidateContentRoutes(post.leadId);
+    return { ok: true, message: "Content archived", contentPostId: post.id };
+  } catch (error) {
+    console.error("[content-action] archiveContentPostAction failed", { postId, error });
+    return { ok: false, message: error instanceof Error ? error.message : "Unable to archive content" };
+  }
+}
 function normalizePaymentMethod(value: string) {
   const method = value.trim().toUpperCase().replaceAll(" ", "_").replaceAll("-", "_");
   return (PaymentMethod as Record<string, PaymentMethod>)[method] ?? PaymentMethod.OTHER;
@@ -1687,6 +1872,8 @@ export async function scheduleFollowUpTomorrowAction(quoteId: string) {
     };
   }
 }
+
+
 
 
 

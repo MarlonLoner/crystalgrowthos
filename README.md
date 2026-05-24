@@ -490,3 +490,30 @@ This SWC issue is environment-specific and should not require rewriting the app.
 
 
 
+
+## Content Calendar + Publishing Queue
+
+Crystal Growth OS now includes a proof-driven content calendar at `/content-calendar`. The Proof Engine can create real `ContentPost` drafts from review, testimonial, referral, before/after, and completed-project proof assets.
+
+Content workflow:
+- Open `/proof` and click `Create Content Draft` on a proof card.
+- Open `/content-calendar` to review drafts grouped as Idea, Drafted, Ready, Scheduled, Published, and Archived.
+- Mark posts ready, schedule them, mark them published, or archive them.
+- Published content updates the related proof asset to `PUBLISHED` when linked.
+- Money Today surfaces content actions for drafted, ready, due scheduled, and overdue scheduled posts.
+- Lead detail pages show related content history.
+
+Routes:
+- `/content-calendar` - internal content board and publishing queue.
+- `/api/debug/content` - debug view of content posts grouped by status, platform, and format.
+
+Migration:
+- `202605240001_add_content_posts` adds `ContentPost`, `ContentPlatform`, `ContentFormat`, and `ContentStatus`.
+
+Manual test:
+1. Complete a production job and confirm proof assets exist.
+2. Open `/proof` and click `Create Content Draft`.
+3. Open `/content-calendar` and confirm the draft appears.
+4. Mark the draft ready, schedule it, then mark it published.
+5. Confirm `/money-today`, `/proof`, and the related lead detail page reflect the content status.
+6. Open `/api/debug/content` to inspect database-backed content records.

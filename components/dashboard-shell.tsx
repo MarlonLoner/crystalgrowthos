@@ -3,6 +3,7 @@ import {
   Bot,
   Brush,
   CalendarClock,
+  CalendarDays,
   CircleDollarSign,
   Factory,
   FileText,
@@ -28,6 +29,7 @@ const nav = [
   ["Mockups", "/mockups", Brush],
   ["Production", "/production", Factory],
   ["Reviews & Content", "/proof", Star],
+  ["Content Calendar", "/content-calendar", CalendarDays],
   ["Pipeline", "/#pipeline", BarChart3],
   ["Content", "/#content", Sparkles],
   ["Campaigns", "/#campaigns", Mail],
@@ -83,6 +85,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
 
 
 
