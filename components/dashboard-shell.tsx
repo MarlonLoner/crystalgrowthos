@@ -1,4 +1,4 @@
-import {
+﻿import {
   BarChart3,
   Bot,
   Brush,
@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   Mail,
   MessageSquareText,
+  MessagesSquare,
   ReceiptText,
   Sparkles,
   TrendingUp,
@@ -27,7 +28,8 @@ const navGroups = [
     items: [
       ["Dashboard", "/#dashboard", LayoutDashboard],
       ["Money Today", "/money-today", CircleDollarSign],
-      ["System Health", "/system-health", HeartPulse]
+      ["System Health", "/system-health", HeartPulse],
+      ["Communication Queue", "/communication", MessagesSquare]
     ]
   },
   {
@@ -109,5 +111,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
 
 

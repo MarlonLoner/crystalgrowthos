@@ -1,14 +1,14 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { Download, Printer } from "lucide-react";
 import { Lead, Quote, quoteFinalTotal, quoteSubtotal } from "@/lib/mock-data";
 import { currency, formatDate } from "@/lib/utils";
 import { buttonClass, Panel } from "@/components/ui";
 import { QuoteSendActions } from "@/components/quote-send-actions";
 import { QuotePaymentSection } from "@/components/quote-payment-section";
-import type { PaymentView, ProductionJobView } from "@/lib/db-data";
+import type { CommunicationView, PaymentView, ProductionJobView } from "@/lib/db-data";
 import { getProductionSummary } from "@/lib/production-intelligence";
 
-export function QuotePreview({ quote, lead, payments = [], productionJob = null }: { quote: Quote; lead?: Lead; payments?: PaymentView[]; productionJob?: ProductionJobView | null }) {
+export function QuotePreview({ quote, lead, payments = [], productionJob = null, communications = [] }: { quote: Quote; lead?: Lead; payments?: PaymentView[]; productionJob?: ProductionJobView | null; communications?: CommunicationView[] }) {
   const productionSummary = productionJob ? getProductionSummary(productionJob, quote, payments) : null;
 
   return (
@@ -64,6 +64,22 @@ export function QuotePreview({ quote, lead, payments = [], productionJob = null 
       {lead ? <QuoteSendActions quote={quote} lead={lead} /> : null}
       <QuotePaymentSection quote={quote} payments={payments} />
 
+      {communications.length ? (
+        <div className="mt-8 rounded-lg border border-slate-200 bg-slate-50 p-4 print:hidden">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Quote Communications</p>
+          <div className="mt-3 space-y-2">
+            {communications.map((item) => (
+              <div key={item.id} className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                  <p className="font-black text-slate-950">{item.trigger.replaceAll("_", " ")} - {item.channel}</p>
+                  <span className="text-xs font-black text-orange-700">{item.status}</span>
+                </div>
+                <p className="mt-2 line-clamp-2">{item.subject || item.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       {productionJob && productionSummary ? (
         <div className="mt-8 rounded-lg border border-slate-200 bg-slate-50 p-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -85,6 +101,7 @@ export function QuotePreview({ quote, lead, payments = [], productionJob = null 
     </Panel>
   );
 }
+
 
 
 

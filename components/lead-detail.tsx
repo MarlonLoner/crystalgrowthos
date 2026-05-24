@@ -1,10 +1,10 @@
-import { AlertTriangle, Brush, CheckCircle2, Edit, FilePlus2, MessageCircle, Send } from "lucide-react";
+﻿import { AlertTriangle, Brush, CheckCircle2, Edit, FilePlus2, MessageCircle, Send } from "lucide-react";
 import Link from "next/link";
 import { ActionButton } from "@/components/action-button";
 import { WhatsAppAction } from "@/components/whatsapp-action";
 import { WhatsAppScriptGenerator } from "@/components/whatsapp-script-generator";
 import { buttonClass, Panel, SectionHeading } from "@/components/ui";
-import { ActivityView, ContentPostView, LeadAssetView, PaymentView, ProductionJobView, ProofAssetView } from "@/lib/db-data";
+import { ActivityView, CommunicationView, ContentPostView, LeadAssetView, PaymentView, ProductionJobView, ProofAssetView } from "@/lib/db-data";
 import { Lead, Quote, quoteFinalTotal } from "@/lib/mock-data";
 import { inferMockupWorkflow, isMockupRelatedLead } from "@/lib/mockup-workflow";
 import { generateWhatsAppScript } from "@/lib/scripts";
@@ -34,7 +34,8 @@ export function LeadDetail({
   payments = [],
   productionJobs = [],
   proofAssets = [],
-  contentPosts = []
+  contentPosts = [],
+  communications = []
 }: {
   lead: Lead;
   relatedQuotes: Quote[];
@@ -44,6 +45,7 @@ export function LeadDetail({
   productionJobs?: ProductionJobView[];
   proofAssets?: ProofAssetView[];
   contentPosts?: ContentPostView[];
+  communications?: CommunicationView[];
 }) {
   const message = generateWhatsAppScript(lead.status === "Lost" ? "dead-lead-revival" : lead.status === "Won" ? "review-request" : "quote-follow-up", lead);
   const mockupWorkflow = inferMockupWorkflow(lead, assets, activities, relatedQuotes);
@@ -209,6 +211,25 @@ export function LeadDetail({
             </div>
           </Panel>
           <Panel>
+            <SectionHeading eyebrow="Communication History" title="Client messages" description="Drafted, scheduled, sent, and skipped communication linked to this lead." />
+            <div className="space-y-3">
+              {communications.length ? communications.map((item) => (
+                <div key={item.id} className="rounded-lg border border-white/10 bg-obsidian/60 p-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="font-black text-white">{item.trigger.replaceAll("_", " ")}</p>
+                      <p className="mt-1 text-xs text-mercury">{item.channel} - {item.recipientEmail || item.recipientPhone || "No recipient"}</p>
+                    </div>
+                    <span className="rounded-lg bg-aurum/10 px-2.5 py-1 text-xs font-black text-aurum">{item.status}</span>
+                  </div>
+                  {item.subject ? <p className="mt-3 text-sm font-black text-white">{item.subject}</p> : null}
+                  <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-200">{item.body}</p>
+                  <p className="mt-2 text-xs text-slate-500">Created {formatDate(item.createdAt)} - Scheduled {formatDate(item.scheduledFor)} - Sent {formatDate(item.sentAt)}</p>
+                </div>
+              )) : <p className="text-sm text-mercury">No communication drafts linked to this lead yet.</p>}
+            </div>
+          </Panel>
+          <Panel>
             <SectionHeading eyebrow="Activity Timeline" title="Follow-up activities" description="Real activity records for this lead, including pending, completed, and overdue work." />
             <div className="space-y-3">
               {activities.length ? activities.map((activity) => {
@@ -245,6 +266,7 @@ export function LeadDetail({
     </div>
   );
 }
+
 
 
 

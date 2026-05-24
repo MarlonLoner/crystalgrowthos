@@ -45,6 +45,7 @@ model Lead {
   productionJobs      ProductionJob[]
   proofAssets         ProofAsset[]
   contentPosts        ContentPost[]
+  communications      Communication[]
 }
 
 model ContentBrief {
@@ -118,6 +119,7 @@ model Quote {
   productionJob   ProductionJob?
   proofAssets     ProofAsset[]
   contentPosts    ContentPost[]
+  communications  Communication[]
 }
 
 model QuoteLineItem {
@@ -160,6 +162,7 @@ model ProductionJob {
   lead             Lead               @relation(fields: [leadId], references: [id], onDelete: Cascade)
   proofAssets      ProofAsset[]
   contentPosts     ContentPost[]
+  communications   Communication[]
 }
 model ProofAsset {
   id              String           @id @default(cuid())
@@ -177,6 +180,7 @@ model ProofAsset {
   quote           Quote?           @relation(fields: [quoteId], references: [id], onDelete: SetNull)
   productionJob   ProductionJob?   @relation(fields: [productionJobId], references: [id], onDelete: SetNull)
   contentPosts    ContentPost[]
+  communications  Communication[]
 }
 model ContentPost {
   id              String          @id @default(cuid())
@@ -199,6 +203,35 @@ model ContentPost {
   lead            Lead?           @relation(fields: [leadId], references: [id], onDelete: SetNull)
   quote           Quote?          @relation(fields: [quoteId], references: [id], onDelete: SetNull)
   productionJob   ProductionJob?  @relation(fields: [productionJobId], references: [id], onDelete: SetNull)
+  communications  Communication[]
+}
+model Communication {
+  id              String                 @id @default(cuid())
+  leadId          String?
+  quoteId         String?
+  productionJobId String?
+  proofAssetId    String?
+  contentPostId   String?
+  channel         CommunicationChannel
+  direction       CommunicationDirection @default(OUTBOUND)
+  status          CommunicationStatus    @default(DRAFT)
+  trigger         CommunicationTrigger   @default(CUSTOM)
+  subject         String?
+  body            String
+  recipientName   String?
+  recipientEmail  String?
+  recipientPhone  String?
+  scheduledFor    DateTime?
+  sentAt          DateTime?
+  failedAt        DateTime?
+  error           String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  lead            Lead?                  @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  quote           Quote?                 @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  productionJob   ProductionJob?         @relation(fields: [productionJobId], references: [id], onDelete: SetNull)
+  proofAsset      ProofAsset?            @relation(fields: [proofAssetId], references: [id], onDelete: SetNull)
+  contentPost     ContentPost?           @relation(fields: [contentPostId], references: [id], onDelete: SetNull)
 }
 model FollowUpActivity {
   id          String               @id @default(cuid())
@@ -319,6 +352,46 @@ enum ContentStatus {
   PUBLISHED
   ARCHIVED
 }
+enum CommunicationChannel {
+  EMAIL
+  WHATSAPP
+  SMS
+  INTERNAL_NOTE
+}
+
+enum CommunicationDirection {
+  OUTBOUND
+  INBOUND
+}
+
+enum CommunicationStatus {
+  DRAFT
+  READY
+  SENT
+  FAILED
+  SKIPPED
+  SCHEDULED
+}
+
+enum CommunicationTrigger {
+  NEW_LEAD
+  ASSETS_RECEIVED
+  MISSING_ASSETS
+  MOCKUP_IN_DESIGN
+  MOCKUP_SENT
+  QUOTE_CREATED
+  QUOTE_SENT
+  DEPOSIT_REMINDER
+  PAYMENT_RECEIVED
+  PRODUCTION_STARTED
+  INSTALLATION_SCHEDULED
+  BALANCE_REMINDER
+  JOB_COMPLETED
+  REVIEW_REQUEST
+  REFERRAL_REQUEST
+  CONTENT_PERMISSION
+  CUSTOM
+}
 enum PaymentMethod {
   CASH
   ECOCASH
@@ -346,6 +419,7 @@ model LeadAsset {
   notes       String?
   createdAt   DateTime      @default(now())
 }
+
 
 
 

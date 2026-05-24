@@ -1,4 +1,4 @@
-# Crystal Growth OS
+﻿# Crystal Growth OS
 
 Internal AI-powered marketing department dashboard for Crystal Branding Studio.
 
@@ -597,3 +597,40 @@ Security limitations:
 - The session uses a signed httpOnly cookie with `AUTH_SECRET`.
 - Rotate `ADMIN_PASSWORD` and `AUTH_SECRET` if either is exposed.
 - Debug routes are now protected by middleware, but should still be removed or further restricted before broader production use.
+
+## Feature Set 17: Smart Communication Automation Engine
+
+Crystal Growth OS now includes a draft-first communication queue at `/communication`.
+
+What it does:
+- Creates deterministic WhatsApp/email-style client message drafts from workflow events.
+- Groups messages by Draft, Ready, Scheduled, Sent, Failed, and Skipped.
+- Supports Copy Message, Open WhatsApp, Mailto, Mark Ready, Mark Sent, and Skip.
+- Keeps actual sending manual for MVP; no email provider is connected yet.
+
+Automatic draft hooks are wired into:
+- Public intake and shopfront/mockup intake.
+- Missing asset and assets-received flows.
+- Mockup in-design and mockup-sent flows.
+- Quote created and quote sent flows.
+- Payment received, production started, installation scheduled, balance reminder, job completed, review request, referral request, and content permission workflows.
+
+Debug and health:
+- `/api/debug/communication` shows communication counts by status, channel, and trigger.
+- `/system-health` warns about old drafts, overdue scheduled messages, failed messages, and leads missing contact details.
+
+Migration:
+```bash
+npx prisma migrate dev
+npx prisma migrate deploy
+```
+
+Manual test checklist:
+1. Submit `/intake` and confirm a NEW_LEAD draft appears in `/communication`.
+2. Submit `/intake/shopfront` with and without assets and confirm ASSETS_RECEIVED or MISSING_ASSETS drafts.
+3. Move a mockup into design and mark mockup sent; confirm related drafts.
+4. Create/send a quote and record a payment; confirm quote/payment drafts.
+5. Complete production or request review/referral; confirm proof communication drafts.
+6. Use Copy Message, Open WhatsApp, Mailto, Mark Ready, Mark Sent, and Skip.
+
+Remaining limitation: this layer is draft-first only. Real email/SMS sending can be connected later with a provider such as Resend or another transactional email service.

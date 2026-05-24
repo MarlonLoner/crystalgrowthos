@@ -1,11 +1,12 @@
-"use server";
+﻿"use server";
 
-import { ContentFormat, ContentPlatform, ContentStatus, FollowUpActivityType, LeadStatus, PaymentMethod, Prisma, ProductionPriority, ProductionStatus, ProofAssetType, ProofStatus, QuoteStatus } from "@prisma/client";
+import { CommunicationChannel, CommunicationDirection, CommunicationStatus, CommunicationTrigger, ContentFormat, ContentPlatform, ContentStatus, FollowUpActivityType, LeadStatus, PaymentMethod, Prisma, ProductionPriority, ProductionStatus, ProofAssetType, ProofStatus, QuoteStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { generateProofContentDrafts } from "@/lib/proof-content";
 import { captionForProof } from "@/lib/content-templates";
+import { getCommunicationTemplate } from "@/lib/communication-templates";
 
 const leadStatusMap: Record<string, LeadStatus> = {
   "New Lead": LeadStatus.NEW_LEAD,
@@ -58,7 +59,6 @@ async function findQuoteForAction(quoteId: string) {
     include: { lead: true }
   });
 }
-
 function revalidateSalesRoutes(inputQuoteId?: string, leadId?: string, resolvedQuoteId?: string) {
   ["/", "/leads", "/follow-ups", "/money-today", "/quotes", "/reports/revenue"].forEach((path) => revalidatePath(path));
   if (leadId) revalidatePath(`/leads/${leadId}`);
@@ -70,6 +70,133 @@ function revalidateSalesRoutes(inputQuoteId?: string, leadId?: string, resolvedQ
     revalidatePath(`/quotes/${resolvedQuoteId}`);
     revalidatePath(`/quotes/${resolvedQuoteId}/print`);
   }
+}
+
+function revalidateCommunicationRoutes(leadId?: string | null, quoteId?: string | null) {
+  ["/", "/communication", "/money-today", "/system-health", "/leads", "/quotes", "/production", "/proof", "/content-calendar", "/follow-ups", "/reports/revenue"].forEach((path) => revalidatePath(path));
+  if (leadId) revalidatePath(`/leads/${leadId}`);
+  if (quoteId) {
+    revalidatePath(`/quotes/${quoteId}`);
+    revalidatePath(`/quotes/${quoteId}/print`);
+  }
+}
+
+type CommunicationDraftInput = {
+  leadId?: string | null;
+  quoteId?: string | null;
+  productionJobId?: string | null;
+  proofAssetId?: string | null;
+  contentPostId?: string | null;
+  channel: CommunicationChannel;
+  trigger: CommunicationTrigger;
+  subject?: string | null;
+  body: string;
+  recipientName?: string | null;
+  recipientEmail?: string | null;
+  recipientPhone?: string | null;
+  scheduledFor?: Date | null;
+  force?: boolean;
+};
+
+export async function createCommunicationDraft(input: CommunicationDraftInput) {
+  const relatedWhere = {
+    leadId: input.leadId ?? null,
+    quoteId: input.quoteId ?? null,
+    productionJobId: input.productionJobId ?? null,
+    proofAssetId: input.proofAssetId ?? null,
+    contentPostId: input.contentPostId ?? null
+  };
+
+  if (!input.force) {
+    const existing = await prisma.communication.findFirst({
+      where: {
+        ...relatedWhere,
+        channel: input.channel,
+        trigger: input.trigger,
+        status: { in: [CommunicationStatus.DRAFT, CommunicationStatus.READY, CommunicationStatus.SCHEDULED] }
+      },
+      orderBy: { updatedAt: "desc" }
+    });
+    if (existing) return existing;
+  }
+
+  return prisma.communication.create({
+    data: {
+      ...relatedWhere,
+      channel: input.channel,
+      direction: CommunicationDirection.OUTBOUND,
+      status: input.scheduledFor ? CommunicationStatus.SCHEDULED : CommunicationStatus.DRAFT,
+      trigger: input.trigger,
+      subject: input.subject || null,
+      body: input.body,
+      recipientName: input.recipientName || null,
+      recipientEmail: input.recipientEmail || null,
+      recipientPhone: input.recipientPhone || null,
+      scheduledFor: input.scheduledFor ?? null
+    }
+  });
+}
+
+async function createCommunicationFromContext(input: {
+  trigger: CommunicationTrigger;
+  channel?: CommunicationChannel;
+  leadId?: string | null;
+  quoteId?: string | null;
+  productionJobId?: string | null;
+  proofAssetId?: string | null;
+  contentPostId?: string | null;
+  scheduledFor?: Date | null;
+  amount?: number | string | null;
+  balance?: number | string | null;
+  missingAssets?: string[];
+  scheduledDate?: Date | string | null;
+  force?: boolean;
+}) {
+  try {
+    const channel = input.channel ?? CommunicationChannel.WHATSAPP;
+    const [lead, quote, job] = await Promise.all([
+      input.leadId ? prisma.lead.findUnique({ where: { id: input.leadId } }) : input.quoteId ? prisma.quote.findUnique({ where: { id: input.quoteId }, include: { lead: true } }).then((item) => item?.lead ?? null) : input.productionJobId ? prisma.productionJob.findUnique({ where: { id: input.productionJobId }, include: { lead: true } }).then((item) => item?.lead ?? null) : null,
+      input.quoteId ? prisma.quote.findUnique({ where: { id: input.quoteId } }) : input.productionJobId ? prisma.productionJob.findUnique({ where: { id: input.productionJobId }, include: { quote: true } }).then((item) => item?.quote ?? null) : null,
+      input.productionJobId ? prisma.productionJob.findUnique({ where: { id: input.productionJobId } }) : null
+    ]);
+
+    const resolvedLeadId = input.leadId ?? lead?.id ?? quote?.leadId ?? job?.leadId ?? null;
+    const template = getCommunicationTemplate(input.trigger, channel, {
+      lead: lead ? { name: lead.name, businessName: lead.businessName, serviceInterestedIn: lead.serviceInterestedIn, phone: lead.phone, email: lead.email } : null,
+      quote: quote ? { quoteNumber: quote.quoteNumber, businessName: quote.businessName, serviceCategory: quote.serviceCategory, finalTotal: Number(quote.finalTotal) } : null,
+      job: job ? { title: job.title, installationDate: job.installationDate } : null,
+      amount: input.amount,
+      balance: input.balance,
+      missingAssets: input.missingAssets,
+      scheduledDate: input.scheduledDate
+    });
+
+    const draft = await createCommunicationDraft({
+      leadId: resolvedLeadId,
+      quoteId: input.quoteId ?? quote?.id ?? null,
+      productionJobId: input.productionJobId ?? null,
+      proofAssetId: input.proofAssetId ?? null,
+      contentPostId: input.contentPostId ?? null,
+      channel,
+      trigger: input.trigger,
+      subject: channel === CommunicationChannel.EMAIL ? template.subject : null,
+      body: template.body,
+      recipientName: lead?.name ?? quote?.clientName ?? null,
+      recipientEmail: lead?.email ?? null,
+      recipientPhone: lead?.phone ?? null,
+      scheduledFor: input.scheduledFor ?? null,
+      force: input.force
+    });
+    revalidateCommunicationRoutes(resolvedLeadId, input.quoteId ?? quote?.id ?? null);
+    return draft;
+  } catch (error) {
+    console.error("[communication] draft creation failed", { input, error });
+    return null;
+  }
+}
+
+async function createLeadCommunicationDraft(leadId: string, trigger: CommunicationTrigger, extra?: Partial<Parameters<typeof createCommunicationFromContext>[0]>) {
+  return createCommunicationFromContext({ leadId, trigger, channel: CommunicationChannel.WHATSAPP, ...extra });
 }
 
 export async function createLeadAction(formData: FormData) {
@@ -404,6 +531,7 @@ export async function createIntakeLeadAction(formData: FormData) {
   const existingLead = await findLeadByEmail(email);
   if (existingLead) {
     const updated = await attachRepeatIntakeSubmission(formData, email);
+    await createLeadCommunicationDraft(updated.id, CommunicationTrigger.NEW_LEAD, { force: true });
     revalidateIntakeRoutes(updated.id);
     redirect("/intake/thank-you");
   }
@@ -447,10 +575,12 @@ export async function createIntakeLeadAction(formData: FormData) {
       }
     });
 
+    await createLeadCommunicationDraft(lead.id, CommunicationTrigger.NEW_LEAD);
     revalidateIntakeRoutes(lead.id);
   } catch (error) {
     if (isUniqueConstraintError(error)) {
       const updated = await attachRepeatIntakeSubmission(formData, email);
+      await createLeadCommunicationDraft(updated.id, CommunicationTrigger.NEW_LEAD, { force: true });
       revalidateIntakeRoutes(updated.id);
     } else {
       throw error;
@@ -709,6 +839,14 @@ export async function createShopfrontIntakeLeadAction(formData: FormData) {
   console.log("[shopfront-intake] final created asset ids/count", { count: result.createdAssetIds.length, ids: result.createdAssetIds });
   console.log("[shopfront-intake] final created follow-up activity ids", result.createdActivityIds);
 
+  const uploadedSummary = shopfrontAssetSummary(assets);
+  await createLeadCommunicationDraft(result.leadId, uploadedSummary.hasShopfront && uploadedSummary.hasLogo ? CommunicationTrigger.ASSETS_RECEIVED : CommunicationTrigger.MISSING_ASSETS, {
+    missingAssets: [
+      uploadedSummary.hasShopfront ? "" : "shopfront photo",
+      uploadedSummary.hasLogo ? "" : "logo"
+    ].filter(Boolean),
+    force: true
+  });
   revalidateIntakeRoutes(result.leadId);
   console.log("[shopfront-intake] redirect target", "/intake/thank-you");
   redirect("/intake/thank-you");
@@ -749,6 +887,7 @@ export async function markMockupInDesignAction(leadId: string) {
     },
     select: { id: true }
   });
+  await createLeadCommunicationDraft(leadId, CommunicationTrigger.MOCKUP_IN_DESIGN);
   revalidateMockupRoutes(leadId);
   return { ok: true, message: "Mockup moved into design and internal task created", activityId: activity.id, internalTaskId: internalTask.id };
 }
@@ -805,6 +944,7 @@ export async function markMockupSentAction(leadId: string) {
   console.log("[mockup-workflow] created mockup follow-up activity", { leadId, activityId: followUp.id });
 
   await prisma.lead.update({ where: { id: leadId }, data: { nextFollowUpAt: next, nextFollowUpDate: next } });
+  await createLeadCommunicationDraft(leadId, CommunicationTrigger.MOCKUP_SENT, { scheduledFor: next });
   revalidateMockupRoutes(leadId);
   return {
     ok: true,
@@ -841,6 +981,7 @@ export async function requestMissingAssetsAction(leadId: string) {
     select: { id: true }
   });
   await prisma.lead.update({ where: { id: leadId }, data: { nextFollowUpAt: next, nextFollowUpDate: next } });
+  await createLeadCommunicationDraft(leadId, CommunicationTrigger.MOCKUP_SENT, { scheduledFor: next });
   revalidateMockupRoutes(leadId);
   return { ok: true, message: "Missing assets request logged", activityId: requested.id, followUpActivityId: followUp.id };
 }
@@ -926,6 +1067,7 @@ export async function createQuoteAction(formData: FormData) {
     }
   });
 
+  await createCommunicationFromContext({ leadId, quoteId: quote.id, trigger: CommunicationTrigger.QUOTE_CREATED });
   revalidateSalesRoutes(quote.id, leadId);
   revalidatePath("/mockups");
   revalidatePath("/money-today");
@@ -1200,7 +1342,10 @@ async function updateProductionJobStatus(jobId: string, status: ProductionStatus
 }
 
 export async function startProductionAction(jobId: string) {
-  return updateProductionJobStatus(jobId, ProductionStatus.DESIGN_ARTWORK, "Production started", "Production work has started. Begin design/artwork stage.");
+  const result = await updateProductionJobStatus(jobId, ProductionStatus.DESIGN_ARTWORK, "Production started", "Production work has started. Begin design/artwork stage.");
+  const job = await prisma.productionJob.findUnique({ where: { id: jobId } });
+  if (job) await createCommunicationFromContext({ leadId: job.leadId, quoteId: job.quoteId, productionJobId: job.id, trigger: CommunicationTrigger.PRODUCTION_STARTED });
+  return result;
 }
 
 export async function markDesignArtworkAction(jobId: string) {
@@ -1217,6 +1362,8 @@ export async function scheduleInstallationAction(formData: FormData) {
   const notes = requiredString(formData, "notes");
   if (!jobId || !installationDate) throw new Error("Job and installation date are required.");
   await updateProductionJobStatus(jobId, ProductionStatus.INSTALLATION_SCHEDULED, "Installation scheduled", `Installation scheduled for ${installationDate.toISOString().slice(0, 10)}.${notes ? ` Notes: ${notes}` : ""}`, FollowUpActivityType.NOTE, null, { installationDate, notes });
+  const job = await prisma.productionJob.findUnique({ where: { id: jobId } });
+  if (job) await createCommunicationFromContext({ leadId: job.leadId, quoteId: job.quoteId, productionJobId: job.id, trigger: CommunicationTrigger.INSTALLATION_SCHEDULED, scheduledDate: installationDate });
 }
 
 export async function markInstalledDeliveredAction(jobId: string) {
@@ -1234,6 +1381,7 @@ export async function markInstalledDeliveredAction(jobId: string) {
     }
     if (balance > 0) {
       await ensurePendingFollowUp(job.leadId, "Collect balance", "Job delivered/installed. Balance remains due.", FollowUpActivityType.WHATSAPP, new Date());
+      await createCommunicationFromContext({ leadId: job.leadId, quoteId: job.quoteId, productionJobId: job.id, trigger: CommunicationTrigger.BALANCE_REMINDER, balance });
     }
     revalidateProductionRoutes(job.leadId, job.quoteId);
     return { ok: true, message: "Installed / delivered", balance };
@@ -1252,6 +1400,7 @@ export async function requestBalanceAction(jobId: string) {
       await prisma.productionJob.update({ where: { id: jobId }, data: { status: ProductionStatus.AWAITING_BALANCE } });
     }
     await ensurePendingFollowUp(job.leadId, "Collect balance", "Job delivered/installed. Balance remains due.", FollowUpActivityType.WHATSAPP, new Date());
+    await createCommunicationFromContext({ leadId: job.leadId, quoteId: job.quoteId, productionJobId: job.id, trigger: CommunicationTrigger.BALANCE_REMINDER });
     revalidateProductionRoutes(job.leadId, job.quoteId);
     return { ok: true, message: "Balance requested" };
   } catch (error) {
@@ -1278,6 +1427,8 @@ export async function markProductionCompletedAction(jobId: string) {
     await ensurePendingFollowUp(job.leadId, "Request review", "Ask client for review/testimonial after completed work.", FollowUpActivityType.WHATSAPP, due);
     await ensurePendingFollowUp(job.leadId, "Create before/after content", "Use completed work as marketing content.", FollowUpActivityType.NOTE, due);
     await ensurePendingFollowUp(job.leadId, "Ask for referral", "Ask the happy client to refer another business.", FollowUpActivityType.WHATSAPP, due);
+    await createCommunicationFromContext({ leadId: job.leadId, quoteId: job.quoteId, productionJobId: job.id, trigger: CommunicationTrigger.JOB_COMPLETED });
+    await createCommunicationFromContext({ leadId: job.leadId, quoteId: job.quoteId, productionJobId: job.id, trigger: CommunicationTrigger.REVIEW_REQUEST });
 
     revalidateProductionRoutes(job.leadId, job.quoteId);
     revalidatePath("/proof");
@@ -1309,6 +1460,7 @@ export async function requestReviewAction(id: string) {
         await prisma.productionJob.update({ where: { id: job.id }, data: { status: ProductionStatus.REVIEW_REQUESTED } });
       }
       await ensureCompletedActivity(job.leadId, "Review requested", "Asked client for a review/testimonial after completed work.", FollowUpActivityType.WHATSAPP);
+      await createCommunicationFromContext({ leadId: job.leadId, quoteId: job.quoteId, productionJobId: job.id, proofAssetId: reviewProof.id, trigger: CommunicationTrigger.REVIEW_REQUEST });
       revalidateProductionRoutes(job.leadId, job.quoteId);
       revalidatePath("/proof");
       return { ok: true, message: reviewProof.status === ProofStatus.REQUESTED ? "Review already requested" : "Review requested", proofAssetId: reviewProof.id };
@@ -1327,6 +1479,7 @@ export async function requestReviewAction(id: string) {
       status: ProofStatus.REQUESTED
     });
     await ensureCompletedActivity(proof.leadId, "Review requested", "Asked client for a review/testimonial after completed work.", FollowUpActivityType.WHATSAPP);
+    await createCommunicationFromContext({ leadId: proof.leadId, quoteId: proof.quoteId, productionJobId: proof.productionJobId, proofAssetId: updated.id, trigger: CommunicationTrigger.REVIEW_REQUEST });
     revalidateProductionRoutes(proof.leadId, proof.quoteId ?? undefined);
     revalidatePath("/proof");
     return { ok: true, message: updated.status === ProofStatus.REQUESTED ? "Review already requested" : "Review requested", proofAssetId: updated.id };
@@ -1467,7 +1620,9 @@ export async function markProofPublishedAction(proofAssetId: string) {
 export async function askForReferralAction(id: string) {
   const proof = await prisma.proofAsset.findUnique({ where: { id } });
   if (proof) {
-    return updateProofAssetStatus(proof.id, ProofStatus.REQUESTED, "Referral requested", "Asked client to refer another business to Crystal Branding Studio.", FollowUpActivityType.WHATSAPP);
+    const result = await updateProofAssetStatus(proof.id, ProofStatus.REQUESTED, "Referral requested", "Asked client to refer another business to Crystal Branding Studio.", FollowUpActivityType.WHATSAPP);
+    await createCommunicationFromContext({ leadId: proof.leadId, quoteId: proof.quoteId, productionJobId: proof.productionJobId, proofAssetId: proof.id, trigger: CommunicationTrigger.REFERRAL_REQUEST });
+    return result;
   }
 
   const lead = await prisma.lead.findUnique({ where: { id } });
@@ -1482,6 +1637,7 @@ export async function askForReferralAction(id: string) {
     }
   });
   await prisma.followUpActivity.create({ data: { leadId: lead.id, type: FollowUpActivityType.WHATSAPP, title: "Referral requested", note: "Asked client to refer another business to Crystal Branding Studio.", completedAt: new Date() } });
+  await createCommunicationFromContext({ leadId: lead.id, proofAssetId: created.id, trigger: CommunicationTrigger.REFERRAL_REQUEST });
   revalidateProductionRoutes(lead.id);
   revalidatePath("/proof");
   return { ok: true, message: "Referral requested", proofAssetId: created.id };
@@ -1604,6 +1760,7 @@ export async function createContentDraftFromProofAction(proofAssetId: string, pl
 
     await prisma.proofAsset.update({ where: { id: proof.id }, data: { status: nextProofStatus(proof.status, ProofStatus.DRAFTED) } });
     await createContentActivity(proof.leadId, "Content draft created", "A social proof content draft was created from completed work.");
+    await createCommunicationFromContext({ leadId: proof.leadId, quoteId: proof.quoteId, productionJobId: proof.productionJobId, proofAssetId: proof.id, contentPostId: post.id, trigger: CommunicationTrigger.CONTENT_PERMISSION });
     revalidateContentRoutes(proof.leadId);
     return { ok: true, message: existing ? "Content draft refreshed" : "Content draft created", contentPostId: post.id };
   } catch (error) {
@@ -1669,6 +1826,51 @@ export async function archiveContentPostAction(postId: string) {
     console.error("[content-action] archiveContentPostAction failed", { postId, error });
     return { ok: false, message: error instanceof Error ? error.message : "Unable to archive content" };
   }
+}
+
+export async function markCommunicationReadyAction(id: string) {
+  try {
+    if (!id) return { ok: false, message: "Missing communication id" };
+    const communication = await prisma.communication.update({ where: { id }, data: { status: CommunicationStatus.READY } });
+    revalidateCommunicationRoutes(communication.leadId, communication.quoteId);
+    return { ok: true, message: "Message marked ready", communicationId: communication.id };
+  } catch (error) {
+    console.error("[communication-action] mark ready failed", { id, error });
+    return { ok: false, message: error instanceof Error ? error.message : "Unable to mark message ready" };
+  }
+}
+
+export async function markCommunicationSentAction(id: string) {
+  try {
+    if (!id) return { ok: false, message: "Missing communication id" };
+    const communication = await prisma.communication.update({ where: { id }, data: { status: CommunicationStatus.SENT, sentAt: new Date(), error: null, failedAt: null } });
+    revalidateCommunicationRoutes(communication.leadId, communication.quoteId);
+    return { ok: true, message: "Message marked sent", communicationId: communication.id };
+  } catch (error) {
+    console.error("[communication-action] mark sent failed", { id, error });
+    return { ok: false, message: error instanceof Error ? error.message : "Unable to mark message sent" };
+  }
+}
+
+export async function markCommunicationSkippedAction(id: string) {
+  try {
+    if (!id) return { ok: false, message: "Missing communication id" };
+    const communication = await prisma.communication.update({ where: { id }, data: { status: CommunicationStatus.SKIPPED } });
+    revalidateCommunicationRoutes(communication.leadId, communication.quoteId);
+    return { ok: true, message: "Message skipped", communicationId: communication.id };
+  } catch (error) {
+    console.error("[communication-action] mark skipped failed", { id, error });
+    return { ok: false, message: error instanceof Error ? error.message : "Unable to skip message" };
+  }
+}
+
+export async function scheduleCommunicationAction(formData: FormData) {
+  const id = requiredString(formData, "communicationId");
+  const scheduledFor = optionalDate(formData.get("scheduledFor"));
+  if (!id) throw new Error("Communication id is required.");
+  if (!scheduledFor) throw new Error("Schedule date is required.");
+  const communication = await prisma.communication.update({ where: { id }, data: { status: CommunicationStatus.SCHEDULED, scheduledFor } });
+  revalidateCommunicationRoutes(communication.leadId, communication.quoteId);
 }
 function normalizePaymentMethod(value: string) {
   const method = value.trim().toUpperCase().replaceAll(" ", "_").replaceAll("-", "_");
@@ -1765,6 +1967,7 @@ export async function recordPaymentAction(formData: FormData) {
     });
   }
 
+  await createCommunicationFromContext({ leadId: quote.leadId, quoteId: quote.id, trigger: CommunicationTrigger.PAYMENT_RECEIVED, amount });
   revalidateSalesRoutes(quote.id, quote.leadId, quote.id);
   revalidateProductionRoutes(quote.leadId, quote.id);
   revalidatePath(`/q/${quote.quoteNumber}`);
@@ -1860,6 +2063,7 @@ export async function updateQuoteStatusAction(quoteId: string, statusValue: stri
         })
       : null;
     if (followUpActivity) console.log("[quote-action] created pending quote follow-up", followUpActivity);
+    if (status === QuoteStatus.SENT) await createCommunicationFromContext({ leadId: quote.leadId, quoteId: quote.id, trigger: CommunicationTrigger.QUOTE_SENT });
 
     revalidateSalesRoutes(quoteId, quote.leadId, quote.id);
     revalidatePath(`/q/${quote.quoteNumber}`);
@@ -1943,6 +2147,21 @@ export async function scheduleFollowUpTomorrowAction(quoteId: string) {
     };
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

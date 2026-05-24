@@ -1,5 +1,5 @@
-import "server-only";
-import { Lead as PrismaLead, Quote as PrismaQuote, QuoteLineItem as PrismaQuoteLineItem, FollowUpActivity as PrismaActivity, LeadAsset as PrismaLeadAsset, Payment as PrismaPayment, ProductionJob as PrismaProductionJob, ProofAsset as PrismaProofAsset, ContentPost as PrismaContentPost } from "@prisma/client";
+﻿import "server-only";
+import { Lead as PrismaLead, Quote as PrismaQuote, QuoteLineItem as PrismaQuoteLineItem, FollowUpActivity as PrismaActivity, LeadAsset as PrismaLeadAsset, Payment as PrismaPayment, ProductionJob as PrismaProductionJob, ProofAsset as PrismaProofAsset, ContentPost as PrismaContentPost, Communication as PrismaCommunication } from "@prisma/client";
 import { followUpActivities, Lead, leads, Quote, quotes } from "@/lib/mock-data";
 import { prisma } from "@/lib/prisma";
 import { suggestQuoteLineItems } from "@/lib/quote-suggestions";
@@ -93,6 +93,30 @@ export type ContentPostView = {
   scheduledAt: string | null;
   publishedAt: string | null;
   notes: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CommunicationView = {
+  id: string;
+  leadId: string | null;
+  quoteId: string | null;
+  productionJobId: string | null;
+  proofAssetId: string | null;
+  contentPostId: string | null;
+  channel: string;
+  direction: string;
+  status: string;
+  trigger: string;
+  subject: string;
+  body: string;
+  recipientName: string;
+  recipientEmail: string;
+  recipientPhone: string;
+  scheduledFor: string | null;
+  sentAt: string | null;
+  failedAt: string | null;
+  error: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -216,6 +240,32 @@ function mapContentPost(post: PrismaContentPost): ContentPostView {
     updatedAt: iso(post.updatedAt)
   };
 }
+
+function mapCommunication(communication: PrismaCommunication): CommunicationView {
+  return {
+    id: communication.id,
+    leadId: communication.leadId,
+    quoteId: communication.quoteId,
+    productionJobId: communication.productionJobId,
+    proofAssetId: communication.proofAssetId,
+    contentPostId: communication.contentPostId,
+    channel: communication.channel,
+    direction: communication.direction,
+    status: communication.status,
+    trigger: communication.trigger,
+    subject: communication.subject ?? "",
+    body: communication.body,
+    recipientName: communication.recipientName ?? "",
+    recipientEmail: communication.recipientEmail ?? "",
+    recipientPhone: communication.recipientPhone ?? "",
+    scheduledFor: communication.scheduledFor ? iso(communication.scheduledFor) : null,
+    sentAt: communication.sentAt ? iso(communication.sentAt) : null,
+    failedAt: communication.failedAt ? iso(communication.failedAt) : null,
+    error: communication.error ?? "",
+    createdAt: iso(communication.createdAt),
+    updatedAt: iso(communication.updatedAt)
+  };
+}
 function mapPayment(payment: PrismaPayment): PaymentView {
   return {
     id: payment.id,
@@ -286,7 +336,8 @@ export async function getLeadDetailForPage(id: string) {
         payments: { orderBy: { paidAt: "desc" } },
         productionJobs: { orderBy: { updatedAt: "desc" } },
         proofAssets: { orderBy: { updatedAt: "desc" } },
-        contentPosts: { orderBy: { updatedAt: "desc" } }
+        contentPosts: { orderBy: { updatedAt: "desc" } },
+        communications: { orderBy: { updatedAt: "desc" } }
       }
     });
 
@@ -299,7 +350,8 @@ export async function getLeadDetailForPage(id: string) {
         payments: dbLead.payments.map(mapPayment),
         productionJobs: dbLead.productionJobs.map(mapProductionJob),
         proofAssets: dbLead.proofAssets.map(mapProofAsset),
-        contentPosts: dbLead.contentPosts.map(mapContentPost)
+        contentPosts: dbLead.contentPosts.map(mapContentPost),
+        communications: dbLead.communications.map(mapCommunication)
       };
     }
   } catch {}
@@ -314,7 +366,8 @@ export async function getLeadDetailForPage(id: string) {
     payments: [],
     productionJobs: [],
     proofAssets: [],
-    contentPosts: []
+    contentPosts: [],
+    communications: []
   };
 }
 
@@ -323,8 +376,7 @@ export async function getQuoteDetailForPage(id: string) {
     const quoteNumber = quoteNumberFromDemoId(id) ?? (id.startsWith("CBS-") ? id : null);
     const dbQuote = await prisma.quote.findFirst({
       where: quoteNumber ? { quoteNumber } : { id },
-      include: { lineItems: true, lead: true, payments: { orderBy: { paidAt: "desc" } }, productionJob: true,
-        contentPosts: { orderBy: { updatedAt: "desc" } }
+      include: { lineItems: true, lead: true, payments: { orderBy: { paidAt: "desc" } }, productionJob: true, communications: { orderBy: { updatedAt: "desc" } }, contentPosts: { orderBy: { updatedAt: "desc" } }
       }
     });
 
@@ -334,6 +386,7 @@ export async function getQuoteDetailForPage(id: string) {
         lead: mapLead(dbQuote.lead),
         payments: dbQuote.payments.map(mapPayment),
         productionJob: dbQuote.productionJob ? mapProductionJob(dbQuote.productionJob) : null,
+        communications: dbQuote.communications.map(mapCommunication),
         source: "database" as QuoteDetailSource
       };
     }
@@ -345,7 +398,7 @@ export async function getQuoteDetailForPage(id: string) {
   const quote = quotes.find((item) => item.id === id || item.quoteNumber === id);
   if (!quote) return null;
   const lead = leads.find((item) => item.id === quote.leadId);
-  return { quote, lead, payments: [], productionJob: null, source: "fallback" as QuoteDetailSource };
+  return { quote, lead, payments: [], productionJob: null, communications: [], source: "fallback" as QuoteDetailSource };
 }
 export async function getNextQuoteNumber() {
   const year = new Date().getFullYear();
@@ -433,7 +486,7 @@ export async function getQuotesForPage() {
 
 export async function getRevenueSourceData() {
   try {
-    const [dbLeads, dbQuotes, dbActivities, dbAssets, dbPayments, dbProductionJobs, dbProofAssets, dbContentPosts] = await Promise.all([
+    const [dbLeads, dbQuotes, dbActivities, dbAssets, dbPayments, dbProductionJobs, dbProofAssets, dbContentPosts, dbCommunications] = await Promise.all([
       prisma.lead.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.quote.findMany({ include: { lineItems: true }, orderBy: { createdAt: "desc" } }),
       prisma.followUpActivity.findMany({ orderBy: { createdAt: "desc" } }),
@@ -441,7 +494,8 @@ export async function getRevenueSourceData() {
       prisma.payment.findMany({ orderBy: { paidAt: "desc" } }),
       prisma.productionJob.findMany({ orderBy: { updatedAt: "desc" } }),
       prisma.proofAsset.findMany({ orderBy: { updatedAt: "desc" } }),
-      prisma.contentPost.findMany({ orderBy: { updatedAt: "desc" } })
+      prisma.contentPost.findMany({ orderBy: { updatedAt: "desc" } }),
+      prisma.communication.findMany({ orderBy: { updatedAt: "desc" } })
     ]);
 
     return {
@@ -453,11 +507,13 @@ export async function getRevenueSourceData() {
       productionJobs: dbProductionJobs.map(mapProductionJob),
       proofAssets: dbProofAssets.map(mapProofAsset),
       contentPosts: dbContentPosts.map(mapContentPost),
+      communications: dbCommunications.map(mapCommunication),
       source: "database" as const
     };
   } catch (error) {
     console.error("[revenue-source] database lookup failed", error);
-    return { leads, quotes, activities: followUpActivities, assets: [], payments: [], productionJobs: [], proofAssets: [], contentPosts: [], source: "fallback" as const };
+    return { leads, quotes, activities: followUpActivities, assets: [], payments: [], productionJobs: [], proofAssets: [], contentPosts: [],
+    communications: [], source: "fallback" as const };
   }
 }
 
@@ -476,7 +532,8 @@ export async function getMoneyTodayPageData() {
     payments: data.payments,
     productionJobs: data.productionJobs,
     proofAssets: data.proofAssets,
-    contentPosts: data.contentPosts
+    contentPosts: data.contentPosts,
+    communications: data.communications
   };
 }
 
@@ -631,10 +688,12 @@ export async function getProductionBoardData() {
       include: {
         lead: true,
         quote: { include: { lineItems: true, payments: { orderBy: { paidAt: "desc" } }, proofAssets: { orderBy: { updatedAt: "desc" } },
-        contentPosts: { orderBy: { updatedAt: "desc" } }
+        contentPosts: { orderBy: { updatedAt: "desc" } },
+        communications: { orderBy: { updatedAt: "desc" } }
       } },
         proofAssets: { orderBy: { updatedAt: "desc" } },
-        contentPosts: { orderBy: { updatedAt: "desc" } }
+        contentPosts: { orderBy: { updatedAt: "desc" } },
+        communications: { orderBy: { updatedAt: "desc" } }
       }
     });
 
@@ -665,8 +724,7 @@ export async function getProofBoardData() {
       include: {
         lead: true,
         quote: { include: { lineItems: true } },
-        productionJob: true,
-        contentPosts: { orderBy: { updatedAt: "desc" } }
+        productionJob: true, communications: { orderBy: { updatedAt: "desc" } }, contentPosts: { orderBy: { updatedAt: "desc" } }
       }
     });
 
@@ -714,4 +772,35 @@ export async function getContentCalendarData() {
 }
 
 
+
+
+export async function getCommunicationQueueData() {
+  try {
+    const communications = await prisma.communication.findMany({
+      orderBy: [{ status: "asc" }, { scheduledFor: "asc" }, { updatedAt: "desc" }],
+      include: {
+        lead: true,
+        quote: { include: { lineItems: true } },
+        productionJob: true,
+        proofAsset: true,
+        contentPost: true
+      }
+    });
+
+    return {
+      source: "database" as const,
+      communications: communications.map((item) => ({
+        communication: mapCommunication(item),
+        lead: item.lead ? mapLead(item.lead) : null,
+        quote: item.quote ? mapQuote(item.quote) : null,
+        productionJob: item.productionJob ? mapProductionJob(item.productionJob) : null,
+        proofAsset: item.proofAsset ? mapProofAsset(item.proofAsset) : null,
+        contentPost: item.contentPost ? mapContentPost(item.contentPost) : null
+      }))
+    };
+  } catch (error) {
+    console.error("[communication-queue] database lookup failed", error);
+    return { source: "fallback" as const, communications: [] };
+  }
+}
 

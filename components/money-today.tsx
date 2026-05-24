@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { CheckCircle2, Eye, FilePlus2, ReceiptText } from "lucide-react";
 import Link from "next/link";
@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { getAiRevenueBrief, getMoneyActionItems, getRevenueMetrics, Priority } from "@/lib/revenue-intelligence";
 import { getMockupWorkflowItems } from "@/lib/mockup-workflow";
 import { Lead, Quote } from "@/lib/mock-data";
-import type { ActivityView, ContentPostView, LeadAssetView, PaymentView, ProductionJobView, ProofAssetView } from "@/lib/db-data";
+import type { ActivityView, CommunicationView, ContentPostView, LeadAssetView, PaymentView, ProductionJobView, ProofAssetView } from "@/lib/db-data";
 import { getPaymentSummary } from "@/lib/payment-intelligence";
 import { getProductionSummary } from "@/lib/production-intelligence";
 import { getProofSummary } from "@/lib/proof-intelligence";
@@ -35,9 +35,10 @@ type MoneyTodayProps = {
   productionJobs?: ProductionJobView[];
   proofAssets?: ProofAssetView[];
   contentPosts?: ContentPostView[];
+  communications?: CommunicationView[];
 };
 
-export function MoneyToday({ leads = [], quotes = [], activities = [], assets = [], payments = [], productionJobs = [], proofAssets = [], contentPosts = [] }: MoneyTodayProps) {
+export function MoneyToday({ leads = [], quotes = [], activities = [], assets = [], payments = [], productionJobs = [], proofAssets = [], contentPosts = [], communications = [] }: MoneyTodayProps) {
   const [done, setDone] = useState<string[]>([]);
   const items = useMemo(() => getMoneyActionItems(leads, quotes).filter((item) => !done.includes(item.id)), [leads, quotes, done]);
   const mockupItems = useMemo(() => getMockupWorkflowItems(leads, assets, activities, quotes).filter((item) => !done.includes(`mockup-${item.lead.id}`)), [leads, assets, activities, quotes, done]);
@@ -63,6 +64,11 @@ export function MoneyToday({ leads = [], quotes = [], activities = [], assets = 
     const isDue = post.status !== "SCHEDULED" || !scheduled || scheduled <= new Date();
     return isDue ? { post, lead, summary } : null;
   }).filter((item): item is NonNullable<typeof item> => item !== null), [contentPosts, leads]);
+  const communicationItems = useMemo(() => communications.filter((item) => {
+    if (["SENT", "SKIPPED"].includes(item.status)) return false;
+    if (item.status === "SCHEDULED" && item.scheduledFor) return new Date(item.scheduledFor) <= new Date();
+    return ["DRAFT", "READY", "FAILED"].includes(item.status);
+  }), [communications]);
   const metrics = getRevenueMetrics(leads, quotes, activities);
   const brief = getAiRevenueBrief(leads, quotes);
 
@@ -214,6 +220,36 @@ export function MoneyToday({ leads = [], quotes = [], activities = [], assets = 
           {contentItems.length === 0 ? <p className="text-sm text-mercury">No content publishing actions waiting right now.</p> : null}
         </div>
       </Panel>
+      <Panel>
+        <SectionHeading
+          eyebrow="Communication Actions"
+          title={`${communicationItems.length} client messages need review`}
+          description="Drafts, ready messages, failed messages, and scheduled client communication due today."
+        />
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+          {communicationItems.map((communication) => {
+            const lead = communication.leadId ? leads.find((item) => item.id === communication.leadId) : null;
+            return (
+              <div key={communication.id} className="rounded-lg border border-white/10 bg-obsidian/60 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-black text-white">{communication.trigger.replaceAll("_", " ")}</p>
+                    <p className="mt-1 text-xs text-mercury">{communication.recipientName || lead?.businessName || "No recipient"} - {communication.channel}</p>
+                  </div>
+                  <span className="rounded-lg bg-aurum/10 px-2 py-1 text-xs font-black text-aurum">{communication.status}</span>
+                </div>
+                <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-200">{communication.body}</p>
+                <p className="mt-3 text-xs text-slate-400">Scheduled {formatDate(communication.scheduledFor)}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {lead ? <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/leads/${lead.id}`}>View Lead</Link> : null}
+                  <Link className="rounded-lg bg-aurum px-3 py-2 text-xs font-black text-obsidian" href="/communication">Open Queue</Link>
+                </div>
+              </div>
+            );
+          })}
+          {communicationItems.length === 0 ? <p className="text-sm text-mercury">No client communication drafts need action right now.</p> : null}
+        </div>
+      </Panel>
       <Panel className="border-aurum/20 bg-aurum/10">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-aurum">Mock AI Revenue Brief</p>
         <p className="mt-3 text-xl font-black leading-8 text-white">{brief.summary}</p>
@@ -307,6 +343,7 @@ export function MoneyToday({ leads = [], quotes = [], activities = [], assets = 
     </div>
   );
 }
+
 
 
 

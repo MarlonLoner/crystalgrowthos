@@ -1,5 +1,5 @@
-import { quoteFinalTotal, type Lead, type Quote } from "@/lib/mock-data";
-import type { ActivityView, ContentPostView, PaymentView, ProductionJobView, ProofAssetView } from "@/lib/db-data";
+﻿import { quoteFinalTotal, type Lead, type Quote } from "@/lib/mock-data";
+import type { ActivityView, CommunicationView, ContentPostView, PaymentView, ProductionJobView, ProofAssetView } from "@/lib/db-data";
 
 export type DataHealthWarning = {
   severity: "info" | "warning" | "critical";
@@ -17,6 +17,7 @@ type DataHealthInput = {
   productionJobs: ProductionJobView[];
   proofAssets: ProofAssetView[];
   contentPosts: ContentPostView[];
+  communications?: CommunicationView[];
 };
 
 function dueDate(value: string | null | undefined) {
@@ -113,6 +114,41 @@ export function getDataHealthWarnings(data: DataHealthInput): DataHealthWarning[
     link: "/content-calendar",
     count: overdueScheduled.length
   });
+  const oldDrafts = (data.communications ?? []).filter((item) => item.status === "DRAFT" && new Date(item.createdAt) < new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000));
+  if (oldDrafts.length) warnings.push({
+    severity: "warning",
+    title: "Communication drafts older than 3 days",
+    message: "Client message drafts should be reviewed, sent, or skipped so the OS does not become a parking lot.",
+    link: "/communication",
+    count: oldDrafts.length
+  });
+
+  const overdueCommunications = (data.communications ?? []).filter((item) => item.status === "SCHEDULED" && dueDate(item.scheduledFor) && dueDate(item.scheduledFor)! < now);
+  if (overdueCommunications.length) warnings.push({
+    severity: "critical",
+    title: "Scheduled communications overdue",
+    message: "Some client messages were scheduled for the past and need to be sent or rescheduled.",
+    link: "/communication",
+    count: overdueCommunications.length
+  });
+
+  const failedCommunications = (data.communications ?? []).filter((item) => item.status === "FAILED");
+  if (failedCommunications.length) warnings.push({
+    severity: "critical",
+    title: "Failed communications",
+    message: "Failed messages need review before clients miss key updates.",
+    link: "/communication",
+    count: failedCommunications.length
+  });
+
+  const leadsMissingContact = data.leads.filter((lead) => !lead.email && !lead.phone);
+  if (leadsMissingContact.length) warnings.push({
+    severity: "warning",
+    title: "Leads missing email and phone",
+    message: "These leads cannot receive WhatsApp or email automation drafts until contact details are added.",
+    link: "/leads",
+    count: leadsMissingContact.length
+  });
 
   warnings.push({
     severity: "info",
@@ -124,3 +160,4 @@ export function getDataHealthWarnings(data: DataHealthInput): DataHealthWarning[
 
   return warnings;
 }
+

@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { AlertTriangle, CheckCircle2, Info, XCircle } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { Panel, SectionHeading } from "@/components/ui";
@@ -31,7 +31,8 @@ export default async function SystemHealthPage() {
     payments: data.payments.length,
     productionJobs: data.productionJobs.length,
     proofAssets: data.proofAssets.length,
-    contentPosts: data.contentPosts.length
+    contentPosts: data.contentPosts.length,
+    communications: data.communications?.length ?? 0
   };
 
   try {
@@ -48,6 +49,7 @@ export default async function SystemHealthPage() {
     ["Proof debug", "/api/debug/proof"],
     ["Proof sync", "/api/debug/proof/sync"],
     ["Content debug", "/api/debug/content"],
+    ["Communication debug", "/api/debug/communication"],
     ["Debug route index", "/api/debug"]
   ] as const;
 
@@ -109,4 +111,5 @@ export default async function SystemHealthPage() {
     </DashboardShell>
   );
 }
+
 

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +11,7 @@ export async function GET() {
       "/api/debug/proof",
       "/api/debug/proof/sync",
       "/api/debug/content",
+    "/api/debug/communication",
       "/api/debug/payments/[quoteId]",
       "/api/debug/quote-send/[id]",
       "/api/debug/quote-from-lead/[leadId]",
@@ -20,3 +21,4 @@ export async function GET() {
     ]
   });
 }
+
