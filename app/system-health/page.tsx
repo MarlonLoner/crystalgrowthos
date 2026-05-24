@@ -4,6 +4,7 @@ import { DashboardShell } from "@/components/dashboard-shell";
 import { Panel, SectionHeading } from "@/components/ui";
 import { getRevenueSourceData } from "@/lib/db-data";
 import { getDataHealthWarnings } from "@/lib/data-health";
+import { authProtectionConfigured } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +41,8 @@ export default async function SystemHealthPage() {
     databaseOk = false;
   }
 
+  const authEnabled = authProtectionConfigured();
+
   const debugLinks = [
     ["Production debug", "/api/debug/production"],
     ["Proof debug", "/api/debug/proof"],
@@ -62,6 +65,9 @@ export default async function SystemHealthPage() {
               {databaseOk ? <CheckCircle2 size={16} /> : <XCircle size={16} />} Database {databaseOk ? "connected" : "unavailable"}
             </span>
             <span className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold text-slate-300">Source: {data.source}</span>
+            <span className={`rounded-lg border px-3 py-2 text-sm font-black ${authEnabled ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100" : "border-red-300/30 bg-red-500/10 text-red-100"}`}>Auth protection {authEnabled ? "enabled" : "needs env setup"}</span>
+            <span className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold text-slate-300">Public intake and public quote routes remain open</span>
+            <span className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold text-slate-300">Debug routes require admin session</span>
           </div>
         </Panel>
 
@@ -103,3 +109,4 @@ export default async function SystemHealthPage() {
     </DashboardShell>
   );
 }
+

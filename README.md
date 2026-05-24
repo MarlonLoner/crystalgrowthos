@@ -554,3 +554,46 @@ Known limitations:
 - Publishing is tracked internally; posts are not automatically pushed to social platforms yet.
 - Payments are recorded manually.
 - Proof sync is an admin/debug tool for backfilling completed jobs.
+
+## Auth + Admin Protection
+
+Crystal Growth OS now uses a simple MVP admin gate for internal routes. Public intake and public quote routes remain open, while the internal command center and debug routes require an admin session.
+
+Required environment variables:
+
+```bash
+ADMIN_PASSWORD="replace-with-secure-admin-password"
+AUTH_SECRET="replace-with-secure-random-secret"
+```
+
+Add both variables to `.env` locally and to Vercel project environment variables. `AUTH_SECRET` should be a long random string.
+
+Public routes:
+- `/login`
+- `/intake`
+- `/intake/shopfront`
+- `/intake/thank-you`
+- `/q/[quoteNumber]`
+- `/api/upload`
+- static assets and Next.js assets
+
+Protected routes include:
+- `/`
+- `/money-today`
+- `/system-health`
+- `/leads`
+- `/quotes`
+- `/mockups`
+- `/production`
+- `/proof`
+- `/content-calendar`
+- `/follow-ups`
+- `/reports` and `/reports/revenue`
+- all `/api/debug/*` routes
+- internal APIs such as campaigns, automations, and lead stage updates
+
+Security limitations:
+- This is a single-password MVP admin gate, not multi-user role-based auth.
+- The session uses a signed httpOnly cookie with `AUTH_SECRET`.
+- Rotate `ADMIN_PASSWORD` and `AUTH_SECRET` if either is exposed.
+- Debug routes are now protected by middleware, but should still be removed or further restricted before broader production use.

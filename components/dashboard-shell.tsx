@@ -16,7 +16,9 @@ import {
   ReceiptText,
   Sparkles,
   TrendingUp,
-  UsersRound
+  UsersRound,
+  LogOut,
+  ShieldCheck
 } from "lucide-react";
 
 const navGroups = [
@@ -93,9 +95,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             ))}
           </nav>
 
-          <div className="mt-auto hidden rounded-lg border border-white/10 bg-white/[0.04] p-4 lg:block">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-aurum">Money OS Mode</p>
-            <p className="mt-2 text-sm leading-6 text-mercury">Follow-ups, quotes, production, proof, and content actions are organized around daily revenue execution.</p>
+          <div className="mt-auto hidden space-y-3 rounded-lg border border-white/10 bg-white/[0.04] p-4 lg:block">
+            <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-aurum"><ShieldCheck size={14} /> Protected OS</p>
+            <p className="text-sm leading-6 text-mercury">Admin session active. Internal routes and debug tools are protected by the Crystal Growth OS gate.</p>
+            <a href="/logout" className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-xs font-black text-white hover:bg-white/15"><LogOut size={14} /> Logout</a>
           </div>
         </div>
       </aside>
@@ -106,3 +109,5 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
+
