@@ -27,7 +27,8 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
           </div>
         </div>
       </div>
-      <QuotePreview quote={data.quote} lead={data.lead} payments={data.payments} />
+      <QuotePreview quote={data.quote} lead={data.lead} payments={data.payments} productionJob={data.productionJob} />
     </DashboardShell>
   );
 }
+
