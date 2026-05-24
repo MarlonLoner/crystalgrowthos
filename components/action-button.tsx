@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -25,6 +25,9 @@ import {
   startProductionAction,
   markContentPublishedAction,
   markContentReadyAction,
+  markCommunicationReadyAction,
+  markCommunicationSentAction,
+  markCommunicationSkippedAction,
   updateQuoteStatusAction
 } from "@/lib/actions";
 
@@ -51,7 +54,11 @@ type ActionKind =
   | "create-content-draft"
   | "content-ready"
   | "content-published"
-  | "content-archived";
+  | "content-archived"
+  | "communication-ready"
+  | "communication-sent"
+  | "communication-skipped"
+  | "communication-scheduled";
 
 export function ActionButton({
   children,
@@ -64,7 +71,8 @@ export function ActionButton({
   quoteStatus,
   jobId,
   proofAssetId,
-  contentPostId
+  contentPostId,
+  communicationId
 }: {
   children: React.ReactNode;
   className: string;
@@ -77,6 +85,7 @@ export function ActionButton({
   jobId?: string;
   proofAssetId?: string;
   contentPostId?: string;
+  communicationId?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -86,6 +95,10 @@ export function ActionButton({
     setMessage("");
     startTransition(async () => {
       try {
+        if (action.startsWith("communication-") && !communicationId) {
+          setMessage("Failed to save: Missing communication id");
+          return;
+        }
         const result = action === "mark-contacted" && leadId
           ? await markLeadContactedAction(leadId)
           : action === "complete-follow-up" && leadId
@@ -132,7 +145,13 @@ export function ActionButton({
                                                     ? await markContentPublishedAction(contentPostId)
                                                     : action === "content-archived" && contentPostId
                                                       ? await archiveContentPostAction(contentPostId)
-                                                      : { ok: false, message: "Missing action data" };
+                                                      : action === "communication-ready" && communicationId
+                                                        ? await markCommunicationReadyAction(communicationId)
+                                                        : action === "communication-sent" && communicationId
+                                                          ? await markCommunicationSentAction(communicationId)
+                                                          : action === "communication-skipped" && communicationId
+                                                            ? await markCommunicationSkippedAction(communicationId)
+                                                            : { ok: false, message: "Missing action data" };
 
         if (result.ok) {
           setMessage(result.message ?? "Saved to database");
@@ -155,6 +174,8 @@ export function ActionButton({
     </span>
   );
 }
+
+
 
 
 
