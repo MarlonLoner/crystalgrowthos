@@ -98,6 +98,38 @@ export function MoneyToday({ leads = [], quotes = [], activities = [], assets = 
 
       <Panel>
         <SectionHeading
+          eyebrow="Quote & Payment Actions"
+          title={`${paymentItems.length} quotes need cash movement`}
+          description="Sent, accepted, and partially paid quotes that need deposit requests, balance collection, or payment confirmation."
+        />
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+          {paymentItems.map(({ quote, lead, summary }) => (
+            <div key={quote.id} className="rounded-lg border border-white/10 bg-obsidian/60 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-black text-white">{quote.quoteNumber}</p>
+                  <p className="mt-1 text-xs text-mercury">{lead?.businessName ?? quote.businessName} - {quote.serviceCategory}</p>
+                </div>
+                <span className="rounded-lg bg-aurum/10 px-2 py-1 text-xs font-black text-aurum">{summary.paymentStatus.replaceAll("_", " ")}</span>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-300">
+                <span>Total: <b className="text-white">{currency(summary.quoteTotal)}</b></span>
+                <span>Paid: <b className="text-white">{currency(summary.amountPaid)}</b></span>
+                <span>Deposit: <b className="text-white">{currency(summary.depositRequiredAmount)}</b></span>
+                <span>Balance: <b className="text-white">{currency(summary.balanceRemaining)}</b></span>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-200">{summary.suggestedNextAction}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/quotes/${quote.id}`}>View Quote</Link>
+                {lead ? <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/leads/${lead.id}`}>View Lead</Link> : null}
+              </div>
+            </div>
+          ))}
+          {paymentItems.length === 0 ? <p className="text-sm text-mercury">No quote or payment actions waiting right now.</p> : null}
+        </div>
+      </Panel>
+      <Panel>
+        <SectionHeading
           eyebrow="Production Actions"
           title={`${productionItems.length} production jobs need movement`}
           description="Deposit-confirmed jobs that need design, fabrication, installation, balance collection, reviews, or content tasks."
@@ -131,7 +163,7 @@ export function MoneyToday({ leads = [], quotes = [], activities = [], assets = 
       </Panel>
       <Panel>
         <SectionHeading
-          eyebrow="Proof Actions"
+          eyebrow="Proof & Content Actions"
           title={`${proofItems.length} review and content actions`}
           description="Completed work that can become reviews, testimonials, referrals, before/after posts, or case studies."
         />
@@ -229,7 +261,7 @@ export function MoneyToday({ leads = [], quotes = [], activities = [], assets = 
       </Panel>
 <Panel>
         <SectionHeading
-          eyebrow="Daily Action Queue"
+          eyebrow="Sales Actions"
           title={`${items.length} revenue actions remaining`}
           description="Each item includes why it matters, what to do next, and WhatsApp execution buttons."
         />
@@ -275,6 +307,8 @@ export function MoneyToday({ leads = [], quotes = [], activities = [], assets = 
     </div>
   );
 }
+
+
 
 
 

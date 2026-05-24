@@ -92,7 +92,7 @@ export function MockupsBoard({
                   </div>
                 </article>
               ))}
-              {columnItems.length === 0 ? <p className="py-8 text-center text-sm text-mercury">No cards here.</p> : null}
+              {columnItems.length === 0 ? <p className="py-8 text-center text-sm text-mercury">No mockup requests in this stage. Shopfront intake submissions with uploaded assets move through this board.</p> : null}
             </div>
           </section>
         ))}

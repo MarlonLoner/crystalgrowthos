@@ -527,3 +527,30 @@ If `/proof` is empty but `/api/debug/proof` shows completed or review-requested 
 ```
 
 This creates missing `ProofAsset` records for existing `COMPLETED` and `REVIEW_REQUESTED` production jobs without duplicating existing proof assets. It is a temporary admin/debug route for testing and should be protected or removed before wider production use.
+
+## Command Center Polish + Data Health
+
+Crystal Growth OS now includes a command-center refinement layer for presenting and trusting the full workflow:
+
+Lead -> Assets -> Mockup -> Quote -> Payment -> Production -> Proof -> Content -> More leads.
+
+Feature map:
+- Dashboard `/` shows a Business Flow Snapshot and lifecycle strip across lead capture, mockups, quotes, payments, production, proof, and content.
+- Money Today `/money-today` groups work into Sales Actions, Mockup Production Actions, Quote & Payment Actions, Production Actions, and Proof & Content Actions.
+- System Health `/system-health` shows database status, core table counts, data-health warnings, and debug route links.
+- Debug index `/api/debug` lists MVP diagnostic routes.
+- Major boards now have clearer empty states explaining what belongs there and how records enter the page.
+
+Demo/testing checklist:
+1. Open `/` and confirm the flow snapshot and lifecycle strip load.
+2. Open `/money-today` and confirm action groups are easy to scan.
+3. Open `/system-health` and review counts and warnings.
+4. Open `/api/debug` and confirm the debug route index appears.
+5. Visit `/mockups`, `/production`, `/proof`, `/content-calendar`, `/follow-ups`, `/quotes`, `/leads`, and `/intake/inbox` with low data to confirm useful empty states.
+
+Known limitations:
+- User authentication is still MVP-level and should be hardened before broader production use.
+- Debug routes, including `/api/debug/proof/sync`, need protection or removal before wider production use.
+- Publishing is tracked internally; posts are not automatically pushed to social platforms yet.
+- Payments are recorded manually.
+- Proof sync is an admin/debug tool for backfilling completed jobs.

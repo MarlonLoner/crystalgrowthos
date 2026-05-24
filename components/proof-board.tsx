@@ -103,7 +103,7 @@ export function ProofBoard({ items, source = "database" }: ProofBoardProps) {
               </div>
               <div className="space-y-3">
                 {columnItems.map((item) => <ProofCard key={item.proof.id} item={item} />)}
-                {columnItems.length === 0 ? <p className="rounded-lg border border-dashed border-white/10 p-4 text-sm text-mercury">No proof assets in this stage.</p> : null}
+                {columnItems.length === 0 ? <p className="rounded-lg border border-dashed border-white/10 p-4 text-sm text-mercury">No proof assets in this stage. Complete a production job or run proof sync to create review/content opportunities.</p> : null}
               </div>
             </section>
           );
@@ -112,6 +112,7 @@ export function ProofBoard({ items, source = "database" }: ProofBoardProps) {
     </div>
   );
 }
+
 
 
 

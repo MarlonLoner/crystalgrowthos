@@ -121,6 +121,7 @@ export function FollowUpQueue({ leads = mockLeads, quotes = mockQuotes }: { lead
                     </td>
                   </tr>
                 ))}
+              {queue.length === 0 ? <tr><td colSpan={10} className="px-4 py-8 text-center text-mercury">No follow-ups due. New intake leads, quote follow-ups, payment reminders, and mockup follow-ups will appear here when they need action.</td></tr> : null}
               </tbody>
             </table>
           </div>
@@ -140,6 +141,7 @@ export function FollowUpQueue({ leads = mockLeads, quotes = mockQuotes }: { lead
     </div>
   );
 }
+
 
 
 

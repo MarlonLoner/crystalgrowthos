@@ -1,4 +1,4 @@
-﻿import { FileText, Plus } from "lucide-react";
+import { FileText, Plus } from "lucide-react";
 import Link from "next/link";
 import { Quote, quoteFinalTotal } from "@/lib/mock-data";
 import { currency, formatDate } from "@/lib/utils";
@@ -38,10 +38,12 @@ export function QuoteList({ quotes }: { quotes: Quote[] }) {
                 </td>
               </tr>
             ))}
+          {quotes.length === 0 ? <tr><td colSpan={8} className="px-4 py-8 text-center text-mercury">No quotes yet. Create one from a warm lead or from a mockup-ready shopfront request.</td></tr> : null}
           </tbody>
         </table>
       </div>
     </Panel>
   );
 }
+
 

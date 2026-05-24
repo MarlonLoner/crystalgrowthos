@@ -120,7 +120,7 @@ export function ProductionBoard({ items, source = "database" }: ProductionBoardP
               </div>
               <div className="space-y-3">
                 {columnItems.map((item) => <ProductionCard key={item.job.id} item={item} />)}
-                {columnItems.length === 0 ? <p className="rounded-lg border border-dashed border-white/10 p-4 text-sm text-mercury">No jobs in this stage.</p> : null}
+                {columnItems.length === 0 ? <p className="rounded-lg border border-dashed border-white/10 p-4 text-sm text-mercury">No production jobs in this stage. Jobs enter production after a quote reaches the deposit threshold.</p> : null}
               </div>
             </section>
           );
@@ -129,5 +129,6 @@ export function ProductionBoard({ items, source = "database" }: ProductionBoardP
     </div>
   );
 }
+
 
 

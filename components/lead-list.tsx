@@ -70,12 +70,14 @@ export function LeadList({ leads = [] }: LeadListProps) {
                 </tr>
               );
             })}
+          {leads.length === 0 ? <tr><td colSpan={9} className="px-4 py-8 text-center text-mercury">No leads yet. Add a lead manually or share the public intake forms to start capturing opportunities.</td></tr> : null}
           </tbody>
         </table>
       </div>
     </Panel>
   );
 }
+
 
 
 

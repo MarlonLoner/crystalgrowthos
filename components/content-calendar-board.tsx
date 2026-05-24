@@ -103,7 +103,7 @@ export function ContentCalendarBoard({ items, source = "database" }: ContentCale
               </div>
               <div className="space-y-3">
                 {columnItems.map((item) => <ContentCard key={item.post.id} item={item} />)}
-                {columnItems.length === 0 ? <p className="rounded-lg border border-dashed border-white/10 p-4 text-sm text-mercury">No content posts in this stage.</p> : null}
+                {columnItems.length === 0 ? <p className="rounded-lg border border-dashed border-white/10 p-4 text-sm text-mercury">No content posts in this stage. Create drafts from Proof Engine, then mark them ready, scheduled, or published.</p> : null}
               </div>
             </section>
           );
@@ -112,3 +112,4 @@ export function ContentCalendarBoard({ items, source = "database" }: ContentCale
     </div>
   );
 }
+

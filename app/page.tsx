@@ -1,4 +1,4 @@
-﻿import { DashboardShell } from "@/components/dashboard-shell";
+import { DashboardShell } from "@/components/dashboard-shell";
 import { DashboardOverview } from "@/components/dashboard-overview";
 import { LeadDatabase } from "@/components/lead-database";
 import { SalesPipeline } from "@/components/sales-pipeline";
@@ -32,7 +32,7 @@ export default async function Home() {
             campaign drafts, automations, and monthly growth decisions.
           </p>
         </div>
-        <DashboardOverview leads={leads} quotes={data.quotes} activities={data.activities} />
+        <DashboardOverview leads={leads} quotes={data.quotes} activities={data.activities} assets={data.assets} payments={data.payments} productionJobs={data.productionJobs} proofAssets={data.proofAssets} contentPosts={data.contentPosts} />
       </section>
 
       <StrategyAssistant />
@@ -45,4 +45,5 @@ export default async function Home() {
     </DashboardShell>
   );
 }
+
 

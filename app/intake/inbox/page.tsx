@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { ReceiptText, UsersRound } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { WhatsAppAction } from "@/components/whatsapp-action";
@@ -80,7 +80,7 @@ export default async function IntakeInboxPage() {
                 </tr>
               ))}
               {data.items.length === 0 ? (
-                <tr><td colSpan={9} className="py-8 text-center text-mercury">No intake leads yet. Share the public intake form to start capturing opportunities.</td></tr>
+                <tr><td colSpan={9} className="py-8 text-center text-mercury">No intake leads yet. Share /intake or /intake/shopfront so prospects can submit branding and mockup requests.</td></tr>
               ) : null}
             </tbody>
           </table>
@@ -89,6 +89,7 @@ export default async function IntakeInboxPage() {
     </DashboardShell>
   );
 }
+
 
 
 
