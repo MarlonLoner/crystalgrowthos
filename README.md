@@ -517,3 +517,13 @@ Manual test:
 4. Mark the draft ready, schedule it, then mark it published.
 5. Confirm `/money-today`, `/proof`, and the related lead detail page reflect the content status.
 6. Open `/api/debug/content` to inspect database-backed content records.
+
+### Proof Backfill / Sync
+
+If `/proof` is empty but `/api/debug/proof` shows completed or review-requested production jobs, run the MVP sync route:
+
+```bash
+/api/debug/proof/sync
+```
+
+This creates missing `ProofAsset` records for existing `COMPLETED` and `REVIEW_REQUESTED` production jobs without duplicating existing proof assets. It is a temporary admin/debug route for testing and should be protected or removed before wider production use.

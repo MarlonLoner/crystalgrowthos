@@ -1010,25 +1010,96 @@ async function ensureDefaultProofAssetsForCompletedJob(productionJobId: string) 
   if (!job) throw new Error(`Production job not found: ${productionJobId}`);
 
   const templates = [
-    { type: ProofAssetType.REVIEW_REQUEST, title: "Request client review", content: "Ask client for a Google review or WhatsApp testimonial." },
-    { type: ProofAssetType.BEFORE_AFTER, title: "Create before/after content", content: "Use completed work as marketing content." },
-    { type: ProofAssetType.REFERRAL_REQUEST, title: "Ask for referral", content: "Ask the happy client to refer another business." }
+    {
+      type: ProofAssetType.REVIEW_REQUEST,
+      title: "Request client review",
+      content: "Ask client for a Google review or WhatsApp testimonial.",
+      status: job.status === ProductionStatus.REVIEW_REQUESTED ? ProofStatus.REQUESTED : ProofStatus.TODO
+    },
+    { type: ProofAssetType.BEFORE_AFTER, title: "Create before/after content", content: "Use completed work as marketing content.", status: ProofStatus.TODO },
+    { type: ProofAssetType.REFERRAL_REQUEST, title: "Ask for referral", content: "Ask the happy client to refer another business.", status: ProofStatus.TODO }
   ];
 
   const proofAssets = [];
+  let createdCount = 0;
+  let existingCount = 0;
+
   for (const template of templates) {
-    proofAssets.push(await ensureProofAssetForJob({
+    const existing = await prisma.proofAsset.findFirst({
+      where: {
+        productionJobId: job.id,
+        leadId: job.leadId,
+        type: template.type
+      },
+      select: { id: true }
+    });
+
+    const proofAsset = await ensureProofAssetForJob({
       leadId: job.leadId,
       quoteId: job.quoteId,
       productionJobId: job.id,
       type: template.type,
       title: template.title,
       content: template.content,
-      status: ProofStatus.TODO
-    }));
+      status: template.status
+    });
+
+    proofAssets.push(proofAsset);
+    if (existing) existingCount += 1;
+    else createdCount += 1;
   }
 
-  return { job, proofAssets };
+  return { job, proofAssets, createdCount, existingCount };
+}
+
+export async function syncProofAssetsForCompletedJobsAction() {
+  try {
+    const jobs = await prisma.productionJob.findMany({
+      where: { status: { in: [ProductionStatus.COMPLETED, ProductionStatus.REVIEW_REQUESTED] } },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, leadId: true, quoteId: true, status: true }
+    });
+
+    let createdCount = 0;
+    let existingCount = 0;
+    const syncedJobs = [];
+
+    for (const job of jobs) {
+      const result = await ensureDefaultProofAssetsForCompletedJob(job.id);
+      createdCount += result.createdCount;
+      existingCount += result.existingCount;
+      syncedJobs.push({
+        jobId: job.id,
+        status: job.status,
+        leadId: job.leadId,
+        quoteId: job.quoteId,
+        proofAssetIds: result.proofAssets.map((asset) => asset.id),
+        createdCount: result.createdCount,
+        existingCount: result.existingCount
+      });
+    }
+
+    ["/", "/proof", "/production", "/money-today", "/leads", "/content-calendar"].forEach((path) => revalidatePath(path));
+
+    return {
+      ok: true,
+      message: `Synced ${jobs.length} completed/review jobs`,
+      jobsScanned: jobs.length,
+      createdCount,
+      existingCount,
+      syncedJobs
+    };
+  } catch (error) {
+    console.error("[proof-sync] syncProofAssetsForCompletedJobsAction failed", error);
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Unable to sync proof assets",
+      jobsScanned: 0,
+      createdCount: 0,
+      existingCount: 0,
+      syncedJobs: []
+    };
+  }
 }
 
 async function ensureProofAssetFromLeadActivity(leadId: string, type: ProofAssetType, status: ProofStatus, title: string, content: string) {
@@ -1872,6 +1943,7 @@ export async function scheduleFollowUpTomorrowAction(quoteId: string) {
     };
   }
 }
+
 
 
 

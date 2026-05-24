@@ -88,6 +88,7 @@ export function ProofBoard({ items, source = "database" }: ProofBoardProps) {
         <div className="mt-4 flex flex-wrap gap-3 text-sm text-slate-300">
           <span className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2">Source: {source === "database" ? "Database" : "Fallback"}</span>
           <span className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2">Proof assets: {items.length}</span>
+          {items.length === 0 ? <a href="/api/debug/proof/sync" className="rounded-lg bg-aurum px-3 py-2 font-black text-obsidian">Sync completed jobs</a> : null}
         </div>
       </Panel>
 
@@ -111,5 +112,6 @@ export function ProofBoard({ items, source = "database" }: ProofBoardProps) {
     </div>
   );
 }
+
 
 
