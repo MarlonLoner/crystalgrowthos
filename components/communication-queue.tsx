@@ -2,13 +2,13 @@
 
 import { Copy, Mail, MessageCircle, Send, SkipForward } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { type FormEvent, useState, useTransition } from "react";
 import { ActionButton } from "@/components/action-button";
 import { scheduleEmailCommunicationAction } from "@/lib/actions";
 import { Panel, SectionHeading } from "@/components/ui";
 import type { CommunicationView } from "@/lib/db-data";
 import { communicationChannelLabel, communicationStatusLabel, communicationTriggerLabel, getCommunicationPriority, getCommunicationSuggestedAction, hasMissingRecipientDetails } from "@/lib/communication-intelligence";
-import { formatDate } from "@/lib/utils";
 import { createWhatsAppUrl } from "@/components/whatsapp-action";
 
 type CommunicationQueueItem = {
@@ -41,6 +41,94 @@ function formatDateTime(value: string | null) {
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
+type SchedulePreset = {
+  value: string;
+  label: string;
+};
+
+const schedulePresets: SchedulePreset[] = [
+  { value: "in-15-minutes", label: "15 min" },
+  { value: "in-1-hour", label: "1 hour" },
+  { value: "tomorrow-morning", label: "Tomorrow AM" },
+  { value: "tomorrow-afternoon", label: "Tomorrow PM" },
+  { value: "next-monday-morning", label: "Next Monday AM" }
+];
+
+function ScheduleEmailControls({ communicationId }: { communicationId: string }) {
+  const router = useRouter();
+  const [message, setMessage] = useState("");
+  const [isPending, startTransition] = useTransition();
+
+  function runSchedule(formData: FormData) {
+    setMessage("");
+    startTransition(async () => {
+      const result = await scheduleEmailCommunicationAction(formData);
+      setMessage(result.message ?? (result.ok ? "Email scheduled." : "Unable to schedule email."));
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function schedulePreset(preset: string) {
+    const formData = new FormData();
+    formData.set("communicationId", communicationId);
+    formData.set("preset", preset);
+    runSchedule(formData);
+  }
+
+  function scheduleCustom(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const date = String(formData.get("scheduleDate") ?? "").trim();
+    const time = String(formData.get("scheduleTime") ?? "").trim();
+    if (!date || !time) {
+      setMessage("Please choose a date and time.");
+      return;
+    }
+    runSchedule(formData);
+  }
+
+  return (
+    <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] p-3">
+      <p className="text-xs font-black uppercase tracking-[0.14em] text-aurum">Quick schedule</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {schedulePresets.map((preset) => (
+          <button
+            key={preset.value}
+            type="button"
+            disabled={isPending}
+            onClick={() => schedulePreset(preset.value)}
+            className="rounded-lg bg-white/10 px-3 py-2 text-xs font-black text-white transition hover:bg-white/15 disabled:opacity-60"
+          >
+            {preset.label}
+          </button>
+        ))}
+      </div>
+      <form onSubmit={scheduleCustom} className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+        <input type="hidden" name="communicationId" value={communicationId} />
+        <label className="text-xs font-bold text-slate-300">
+          Date
+          <input
+            name="scheduleDate"
+            type="date"
+            className="mt-1 w-full rounded-lg border border-white/10 bg-white px-3 py-2 text-sm font-bold text-slate-950 placeholder:text-slate-400 focus:border-aurum focus:outline-none focus:ring-2 focus:ring-aurum/30"
+          />
+        </label>
+        <label className="text-xs font-bold text-slate-300">
+          Time
+          <input
+            name="scheduleTime"
+            type="time"
+            className="mt-1 w-full rounded-lg border border-white/10 bg-white px-3 py-2 text-sm font-bold text-slate-950 placeholder:text-slate-400 focus:border-aurum focus:outline-none focus:ring-2 focus:ring-aurum/30"
+          />
+        </label>
+        <button type="submit" disabled={isPending} className="self-end rounded-lg bg-aurum px-3 py-2 text-xs font-black text-obsidian disabled:opacity-60">
+          Schedule Custom Time
+        </button>
+      </form>
+      {message ? <p className={`mt-2 text-xs font-bold ${message.toLowerCase().includes("scheduled") ? "text-emerald-200" : "text-aurum"}`}>{message}</p> : null}
+    </div>
+  );
+}
 function RelatedLinks({ item }: { item: CommunicationQueueItem }) {
   return (
     <div className="mt-3 flex flex-wrap gap-2">
@@ -93,21 +181,8 @@ function CommunicationCard({ item, emailTestMode }: { item: CommunicationQueueIt
       {communication.status === "FAILED" && communication.error ? <p className="mt-3 rounded-lg border border-red-300/25 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-100">{communication.error}</p> : null}
       {communication.status === "SENT" && communication.sentAt ? <p className="mt-3 rounded-lg border border-emerald-300/25 bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-100">Sent {formatDateTime(communication.sentAt)}</p> : null}
       <RelatedLinks item={item} />
-      {communication.channel === "EMAIL" && ["DRAFT", "READY", "SCHEDULED"].includes(communication.status) ? (
-        <form action={scheduleEmailCommunicationAction} className="mt-4 grid gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-3 sm:grid-cols-[1fr_auto]">
-          <input type="hidden" name="communicationId" value={communication.id} />
-          <label className="text-xs font-bold text-slate-300">
-            Schedule email
-            <input
-              name="scheduledFor"
-              type="datetime-local"
-              required
-              className="mt-1 w-full rounded-lg border border-white/10 bg-white px-3 py-2 text-sm font-bold text-slate-950 placeholder:text-slate-400 focus:border-aurum focus:outline-none focus:ring-2 focus:ring-aurum/30"
-            />
-          </label>
-          <button type="submit" className="self-end rounded-lg bg-aurum px-3 py-2 text-xs font-black text-obsidian">Schedule Email</button>
-        </form>
-      ) : null}
+      {communication.channel === "EMAIL" && ["DRAFT", "READY"].includes(communication.status) ? <ScheduleEmailControls communicationId={communication.id} /> : null}
+
       <div className="mt-4 flex flex-wrap gap-2">
         <button type="button" onClick={copyBody} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-black text-white"><Copy size={14} className="inline" /> {copied ? "Copied" : "Copy Message"}</button>
         {whatsAppHref ? <a href={whatsAppHref} target="_blank" rel="noreferrer" className="rounded-lg bg-emerald-400 px-3 py-2 text-xs font-black text-obsidian"><MessageCircle size={14} className="inline" /> Open WhatsApp</a> : null}
@@ -173,6 +248,8 @@ export function CommunicationQueue({ communications, emailTestMode = false }: { 
     </div>
   );
 }
+
+
 
 
 
