@@ -6,6 +6,7 @@ import { getRevenueSourceData } from "@/lib/db-data";
 import { getDataHealthWarnings } from "@/lib/data-health";
 import { authProtectionConfigured } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getEmailProviderStatus } from "@/lib/email-provider";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,7 @@ export default async function SystemHealthPage() {
   }
 
   const authEnabled = authProtectionConfigured();
+  const emailStatus = getEmailProviderStatus();
 
   const debugLinks = [
     ["Production debug", "/api/debug/production"],
@@ -70,6 +72,10 @@ export default async function SystemHealthPage() {
             <span className={`rounded-lg border px-3 py-2 text-sm font-black ${authEnabled ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100" : "border-red-300/30 bg-red-500/10 text-red-100"}`}>Auth protection {authEnabled ? "enabled" : "needs env setup"}</span>
             <span className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold text-slate-300">Public intake and public quote routes remain open</span>
             <span className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold text-slate-300">Debug routes require admin session</span>
+            <span className={`rounded-lg border px-3 py-2 text-sm font-black ${emailStatus.resendConfigured ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100" : "border-aurum/30 bg-aurum/10 text-aurum"}`}>Resend {emailStatus.resendConfigured ? "configured" : "not configured"}</span>
+            <span className={`rounded-lg border px-3 py-2 text-sm font-black ${emailStatus.emailFromConfigured ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100" : "border-red-300/30 bg-red-500/10 text-red-100"}`}>EMAIL_FROM {emailStatus.emailFromConfigured ? "set" : "missing"}</span>
+            <span className={`rounded-lg border px-3 py-2 text-sm font-black ${emailStatus.testMode ? "border-sky-300/30 bg-sky-400/10 text-sky-100" : "border-white/10 bg-white/[0.04] text-slate-300"}`}>Email test mode {emailStatus.testMode ? "active" : "off"}</span>
+            {emailStatus.testMode ? <span className={`rounded-lg border px-3 py-2 text-sm font-black ${emailStatus.testRecipientConfigured ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100" : "border-red-300/30 bg-red-500/10 text-red-100"}`}>Test recipient {emailStatus.testRecipientConfigured ? "set" : "missing"}</span> : null}
           </div>
         </Panel>
 
@@ -111,5 +117,6 @@ export default async function SystemHealthPage() {
     </DashboardShell>
   );
 }
+
 
 

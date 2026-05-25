@@ -9,7 +9,8 @@ export default async function CommunicationPage() {
 
   return (
     <DashboardShell>
-      <CommunicationQueue communications={data.communications} />
+      <CommunicationQueue communications={data.communications} emailTestMode={process.env.EMAIL_TEST_MODE === "true"} />
     </DashboardShell>
   );
 }
+

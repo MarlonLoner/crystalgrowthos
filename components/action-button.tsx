@@ -22,6 +22,7 @@ import {
   requestMissingAssetsAction,
   requestReviewAction,
   scheduleFollowUpTomorrowAction,
+  sendEmailCommunicationAction,
   startProductionAction,
   suppressLowPriorityDraftsForLeadAction,
   markContentPublishedAction,
@@ -60,6 +61,7 @@ type ActionKind =
   | "communication-sent"
   | "communication-skipped"
   | "communication-scheduled"
+  | "communication-send-email"
   | "communication-cleanup";
 
 export function ActionButton({
@@ -153,6 +155,8 @@ export function ActionButton({
                                                           ? await markCommunicationSentAction(communicationId)
                                                           : action === "communication-skipped" && communicationId
                                                             ? await markCommunicationSkippedAction(communicationId)
+                                                            : action === "communication-send-email" && communicationId
+                                                              ? await sendEmailCommunicationAction(communicationId)
                                                             : action === "communication-cleanup" && leadId
                                                               ? await suppressLowPriorityDraftsForLeadAction(leadId)
                                                               : { ok: false, message: "Missing action data" };
@@ -178,6 +182,7 @@ export function ActionButton({
     </span>
   );
 }
+
 
 
 

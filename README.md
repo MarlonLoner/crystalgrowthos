@@ -651,3 +651,37 @@ Priority examples:
 - Low: quote created, mockup in design, content permission, referral request.
 
 The `/communication` page now groups messages as Needs Review, Ready to Send, Scheduled, Sent, and Skipped/Suppressed. It also highlights leads with multiple active drafts and offers cleanup to keep only the strongest next message.
+
+## Feature Set 18: Email Sending Layer
+
+Crystal Growth OS can now send approved EMAIL communications through Resend using an approve/send workflow.
+
+Environment variables:
+```bash
+RESEND_API_KEY=""
+EMAIL_FROM="Crystal Branding Studio <no-reply@yourdomain.com>"
+EMAIL_REPLY_TO=""
+EMAIL_TEST_MODE="true"
+EMAIL_TEST_RECIPIENT=""
+```
+
+Recommended setup:
+1. Verify your Resend sending domain, for example `mail.crystalbrandingstudio.com`.
+2. Set `EMAIL_TEST_MODE=true` first.
+3. Set `EMAIL_TEST_RECIPIENT` to your own inbox.
+4. Create or find an EMAIL draft in `/communication`.
+5. Click `Mark Ready`, then `Send Email`.
+6. Confirm the test email arrives and includes the original intended recipient.
+7. When ready for production, set `EMAIL_TEST_MODE=false` and confirm `EMAIL_FROM` uses the verified domain.
+
+Behavior:
+- Drafts are never auto-sent.
+- Only EMAIL communications with DRAFT, READY, or SCHEDULED status can be sent.
+- Success marks the communication SENT and logs an `Email sent` activity.
+- Failure marks the communication FAILED with a safe error message.
+- Mailto and Mark Sent remain available as manual fallbacks.
+
+Remaining limitations:
+- No inbound email handling yet.
+- No unsubscribe/preferences yet.
+- No bulk campaign sending yet.

@@ -1,6 +1,7 @@
 ﻿import { NextResponse } from "next/server";
 import { getCommunicationQueueData } from "@/lib/db-data";
 import { getCommunicationSuggestedAction, hasMissingRecipientDetails } from "@/lib/communication-intelligence";
+import { getEmailProviderStatus } from "@/lib/email-provider";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,8 @@ function countBy<T extends string>(items: T[]) {
 export async function GET() {
   const data = await getCommunicationQueueData();
   const communications = data.communications.map((item) => item.communication);
+  const emailStatus = getEmailProviderStatus();
+  const emailCommunications = communications.filter((item) => item.channel === "EMAIL");
 
   return NextResponse.json({
     ok: data.source === "database",
@@ -45,6 +48,7 @@ export async function GET() {
     duplicatePrevention: "Drafts are throttled by lead, trigger, channel, priority, and recent active drafts. Suppressed drafts are audited as INTERNAL_NOTE/SKIPPED records."
   });
 }
+
 
 
 

@@ -114,6 +114,40 @@ export function getDataHealthWarnings(data: DataHealthInput): DataHealthWarning[
     link: "/content-calendar",
     count: overdueScheduled.length
   });
+  const emailSendingConfigured = Boolean(process.env.RESEND_API_KEY);
+  const emailFromConfigured = Boolean(process.env.EMAIL_FROM);
+  const emailTestMode = ["1", "true", "yes", "on"].includes(String(process.env.EMAIL_TEST_MODE ?? "").toLowerCase());
+  const emailTestRecipientConfigured = Boolean(process.env.EMAIL_TEST_RECIPIENT);
+  if (emailSendingConfigured && !emailFromConfigured) warnings.push({
+    severity: "critical",
+    title: "Email sending enabled without EMAIL_FROM",
+    message: "Set EMAIL_FROM before sending emails through Resend.",
+    link: "/system-health",
+    count: 1
+  });
+  if (emailTestMode && !emailTestRecipientConfigured) warnings.push({
+    severity: "critical",
+    title: "Email test mode needs recipient",
+    message: "EMAIL_TEST_MODE is active, but EMAIL_TEST_RECIPIENT is not configured.",
+    link: "/system-health",
+    count: 1
+  });
+  const failedEmails = (data.communications ?? []).filter((item) => item.channel === "EMAIL" && item.status === "FAILED");
+  if (failedEmails.length) warnings.push({
+    severity: "critical",
+    title: "Failed email communications",
+    message: "Some EMAIL communications failed and need review before clients miss updates.",
+    link: "/communication",
+    count: failedEmails.length
+  });
+  const readyEmails = (data.communications ?? []).filter((item) => item.channel === "EMAIL" && item.status === "READY");
+  if (readyEmails.length) warnings.push({
+    severity: "warning",
+    title: "Ready emails not sent",
+    message: "Approved EMAIL communications are ready but have not been sent yet.",
+    link: "/communication",
+    count: readyEmails.length
+  });
   const oldDrafts = (data.communications ?? []).filter((item) => item.status === "DRAFT" && new Date(item.createdAt) < new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000));
   if (oldDrafts.length) warnings.push({
     severity: "warning",
@@ -160,4 +194,5 @@ export function getDataHealthWarnings(data: DataHealthInput): DataHealthWarning[
 
   return warnings;
 }
+
 

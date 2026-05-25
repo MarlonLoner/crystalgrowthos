@@ -8,6 +8,7 @@ import { generateProofContentDrafts } from "@/lib/proof-content";
 import { captionForProof } from "@/lib/content-templates";
 import { getCommunicationTemplate } from "@/lib/communication-templates";
 import { getCommunicationPriority, getSuppressionReason, priorityRank } from "@/lib/client-message-policy";
+import { sendEmail } from "@/lib/email-provider";
 
 const leadStatusMap: Record<string, LeadStatus> = {
   "New Lead": LeadStatus.NEW_LEAD,
@@ -1923,6 +1924,61 @@ export async function suppressLowPriorityDraftsForLeadAction(leadId: string) {
     return { ok: false, message: error instanceof Error ? error.message : "Unable to clean up drafts" };
   }
 }
+export async function sendEmailCommunicationAction(communicationId: string) {
+  try {
+    if (!communicationId) return { ok: false, message: "Missing communication id" };
+    const communication = await prisma.communication.findUnique({
+      where: { id: communicationId },
+      include: { lead: true, quote: true, productionJob: true, proofAsset: true, contentPost: true }
+    });
+    if (!communication) return { ok: false, message: `Communication not found: ${communicationId}` };
+    if (communication.channel !== CommunicationChannel.EMAIL) return { ok: false, message: "Only EMAIL communications can be sent with Send Email." };
+    if (communication.status !== CommunicationStatus.DRAFT && communication.status !== CommunicationStatus.READY && communication.status !== CommunicationStatus.SCHEDULED) return { ok: false, message: "Only draft, ready, or scheduled emails can be sent." };
+    if (!communication.subject?.trim()) return { ok: false, message: "Email subject is required." };
+    if (!communication.body.trim()) return { ok: false, message: "Email body is required." };
+
+    const result = await sendEmail({
+      to: communication.recipientEmail ?? "",
+      subject: communication.subject,
+      body: communication.body,
+      replyTo: process.env.EMAIL_REPLY_TO,
+      relatedId: communication.id
+    });
+
+    if (result.ok) {
+      const now = new Date();
+      const updated = await prisma.communication.update({
+        where: { id: communication.id },
+        data: { status: CommunicationStatus.SENT, sentAt: now, failedAt: null, error: null }
+      });
+      if (updated.leadId) {
+        await prisma.followUpActivity.create({
+          data: {
+            leadId: updated.leadId,
+            type: FollowUpActivityType.NOTE,
+            title: "Email sent",
+            note: `Email sent: ${updated.subject ?? "No subject"}. Recipient: ${result.actualRecipient ?? updated.recipientEmail ?? "Not set"}${result.intendedRecipient && result.actualRecipient !== result.intendedRecipient ? ` (intended: ${result.intendedRecipient})` : ""}.`,
+            completedAt: now
+          }
+        });
+      }
+      revalidateCommunicationRoutes(updated.leadId, updated.quoteId);
+      if (updated.productionJobId) revalidatePath("/production");
+      if (updated.proofAssetId) revalidatePath("/proof");
+      return { ok: true, message: `Email sent${result.actualRecipient ? ` to ${result.actualRecipient}` : ""}`, communicationId: updated.id, providerMessageId: result.providerMessageId };
+    }
+
+    const failed = await prisma.communication.update({
+      where: { id: communication.id },
+      data: { status: CommunicationStatus.FAILED, failedAt: new Date(), error: result.error ?? "Email failed." }
+    });
+    revalidateCommunicationRoutes(failed.leadId, failed.quoteId);
+    return { ok: false, message: result.error ?? "Email failed." };
+  } catch (error) {
+    console.error("[email-action] sendEmailCommunicationAction failed", { communicationId, error });
+    return { ok: false, message: error instanceof Error ? error.message : "Unable to send email" };
+  }
+}
 export async function markCommunicationReadyAction(id: string) {
   try {
     if (!id) return { ok: false, message: "Missing communication id" };
@@ -2242,6 +2298,8 @@ export async function scheduleFollowUpTomorrowAction(quoteId: string) {
     };
   }
 }
+
+
 
 
 

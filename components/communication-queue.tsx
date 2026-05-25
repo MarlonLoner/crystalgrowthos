@@ -47,7 +47,7 @@ function RelatedLinks({ item }: { item: CommunicationQueueItem }) {
   );
 }
 
-function CommunicationCard({ item }: { item: CommunicationQueueItem }) {
+function CommunicationCard({ item, emailTestMode }: { item: CommunicationQueueItem; emailTestMode?: boolean }) {
   const [copied, setCopied] = useState(false);
   const communication = item.communication;
   const missingDetails = hasMissingRecipientDetails(communication);
@@ -74,6 +74,7 @@ function CommunicationCard({ item }: { item: CommunicationQueueItem }) {
           <p className="mt-1 text-xs text-mercury">{communication.recipientEmail || communication.recipientPhone || "Missing recipient details"}</p>
         </div>
         <span className="rounded-lg bg-white/10 px-2.5 py-1 text-xs font-black text-white">{communicationStatusLabel(communication.status)}</span>
+        {communication.channel === "EMAIL" && emailTestMode ? <span className="rounded-lg bg-sky-400/10 px-2.5 py-1 text-xs font-black text-sky-100">Test mode</span> : null}
       </div>
       {communication.subject ? <p className="mt-4 text-sm font-black text-white">{communication.subject}</p> : null}
       <p className="mt-3 line-clamp-5 whitespace-pre-line text-sm leading-6 text-slate-200">{communication.body}</p>
@@ -83,11 +84,14 @@ function CommunicationCard({ item }: { item: CommunicationQueueItem }) {
       </div>
       {missingDetails ? <p className="mt-3 rounded-lg border border-red-300/25 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-100">Missing recipient details for this channel.</p> : null}
       {communication.status === "SKIPPED" && communication.error ? <p className="mt-3 rounded-lg border border-sky-300/25 bg-sky-400/10 px-3 py-2 text-xs font-bold text-sky-100">{communication.error}</p> : null}
+      {communication.status === "FAILED" && communication.error ? <p className="mt-3 rounded-lg border border-red-300/25 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-100">{communication.error}</p> : null}
+      {communication.status === "SENT" && communication.sentAt ? <p className="mt-3 rounded-lg border border-emerald-300/25 bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-100">Sent {formatDate(communication.sentAt)}</p> : null}
       <RelatedLinks item={item} />
       <div className="mt-4 flex flex-wrap gap-2">
         <button type="button" onClick={copyBody} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-black text-white"><Copy size={14} className="inline" /> {copied ? "Copied" : "Copy Message"}</button>
         {whatsAppHref ? <a href={whatsAppHref} target="_blank" rel="noreferrer" className="rounded-lg bg-emerald-400 px-3 py-2 text-xs font-black text-obsidian"><MessageCircle size={14} className="inline" /> Open WhatsApp</a> : null}
         {mailHref ? <a href={mailHref} className="rounded-lg bg-white px-3 py-2 text-xs font-black text-slate-950"><Mail size={14} className="inline" /> Mailto</a> : null}
+        {communication.channel === "EMAIL" && ["DRAFT", "READY", "SCHEDULED"].includes(communication.status) ? <ActionButton action="communication-send-email" communicationId={communication.id} className="rounded-lg bg-emerald-400 px-3 py-2 text-xs font-black text-obsidian"><Send size={14} className="inline" /> Send Email</ActionButton> : null}
         {communication.status !== "READY" && communication.status !== "SENT" ? <ActionButton action="communication-ready" communicationId={communication.id} className="rounded-lg bg-aurum px-3 py-2 text-xs font-black text-obsidian">Mark Ready</ActionButton> : null}
         {communication.status !== "SENT" ? <ActionButton action="communication-sent" communicationId={communication.id} className="rounded-lg bg-emerald-400 px-3 py-2 text-xs font-black text-obsidian"><Send size={14} className="inline" /> Mark Sent</ActionButton> : null}
         {!["SKIPPED", "SENT"].includes(communication.status) ? <ActionButton action="communication-skipped" communicationId={communication.id} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><SkipForward size={14} className="inline" /> Skip</ActionButton> : null}
@@ -96,7 +100,7 @@ function CommunicationCard({ item }: { item: CommunicationQueueItem }) {
   );
 }
 
-export function CommunicationQueue({ communications }: { communications: CommunicationQueueItem[] }) {
+export function CommunicationQueue({ communications, emailTestMode = false }: { communications: CommunicationQueueItem[]; emailTestMode?: boolean }) {
   const activeByLead = communications.reduce<Record<string, CommunicationQueueItem[]>>((acc, item) => {
     const leadId = item.communication.leadId;
     if (!leadId || !["DRAFT", "READY"].includes(item.communication.status)) return acc;
@@ -139,7 +143,7 @@ export function CommunicationQueue({ communications }: { communications: Communi
           <Panel key={section.label}>
             <SectionHeading eyebrow={section.label} title={`${items.length} messages`} description="Review, copy, open, suppress, or mark messages as sent from here." />
             <div className="mt-4 grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-              {items.map((item) => <CommunicationCard key={item.communication.id} item={item} />)}
+              {items.map((item) => <CommunicationCard key={item.communication.id} item={item} emailTestMode={emailTestMode} />)}
               {items.length === 0 ? <p className="text-sm text-mercury">No {section.label.toLowerCase()} communications yet. Workflow actions will create drafts automatically.</p> : null}
             </div>
           </Panel>
@@ -148,5 +152,6 @@ export function CommunicationQueue({ communications }: { communications: Communi
     </div>
   );
 }
+
 
 
