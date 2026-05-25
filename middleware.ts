@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { AUTH_COOKIE_NAME, verifyAuthToken } from "@/lib/auth";
 
 const publicExact = new Set([
@@ -6,7 +6,8 @@ const publicExact = new Set([
   "/intake",
   "/intake/shopfront",
   "/intake/thank-you",
-  "/api/upload"
+  "/api/upload",
+  "/api/cron/send-scheduled-emails"
 ]);
 
 function isPublicPath(pathname: string) {
@@ -45,3 +46,4 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"]
 };
+

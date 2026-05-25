@@ -143,6 +143,10 @@ function iso(value: Date | null | undefined) {
   return value ? value.toISOString().slice(0, 10) : "";
 }
 
+function isoDateTime(value: Date | null | undefined) {
+  return value ? value.toISOString() : "";
+}
+
 function mapLead(lead: PrismaLead): Lead {
   return {
     id: lead.id,
@@ -258,12 +262,12 @@ function mapCommunication(communication: PrismaCommunication): CommunicationView
     recipientName: communication.recipientName ?? "",
     recipientEmail: communication.recipientEmail ?? "",
     recipientPhone: communication.recipientPhone ?? "",
-    scheduledFor: communication.scheduledFor ? iso(communication.scheduledFor) : null,
-    sentAt: communication.sentAt ? iso(communication.sentAt) : null,
-    failedAt: communication.failedAt ? iso(communication.failedAt) : null,
+    scheduledFor: communication.scheduledFor ? isoDateTime(communication.scheduledFor) : null,
+    sentAt: communication.sentAt ? isoDateTime(communication.sentAt) : null,
+    failedAt: communication.failedAt ? isoDateTime(communication.failedAt) : null,
     error: communication.error ?? "",
-    createdAt: iso(communication.createdAt),
-    updatedAt: iso(communication.updatedAt)
+    createdAt: isoDateTime(communication.createdAt),
+    updatedAt: isoDateTime(communication.updatedAt)
   };
 }
 function mapPayment(payment: PrismaPayment): PaymentView {
@@ -803,4 +807,5 @@ export async function getCommunicationQueueData() {
     return { source: "fallback" as const, communications: [] };
   }
 }
+
 

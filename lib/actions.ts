@@ -2107,13 +2107,23 @@ export async function markCommunicationSkippedAction(id: string) {
   }
 }
 
-export async function scheduleCommunicationAction(formData: FormData) {
+export async function scheduleEmailCommunicationAction(formData: FormData) {
   const id = requiredString(formData, "communicationId");
   const scheduledFor = optionalDate(formData.get("scheduledFor"));
   if (!id) throw new Error("Communication id is required.");
   if (!scheduledFor) throw new Error("Schedule date is required.");
-  const communication = await prisma.communication.update({ where: { id }, data: { status: CommunicationStatus.SCHEDULED, scheduledFor } });
+  const existing = await prisma.communication.findUnique({ where: { id } });
+  if (!existing) throw new Error(`Communication not found: ${id}`);
+  if (existing.channel !== CommunicationChannel.EMAIL) throw new Error("Only EMAIL communications can be scheduled for automatic sending.");
+  if (existing.status === CommunicationStatus.SENT || existing.status === CommunicationStatus.SKIPPED) throw new Error("Sent or skipped emails cannot be scheduled.");
+  if (!existing.subject?.trim()) throw new Error("Email subject is required before scheduling.");
+  if (!existing.body.trim()) throw new Error("Email body is required before scheduling.");
+  const communication = await prisma.communication.update({ where: { id }, data: { status: CommunicationStatus.SCHEDULED, scheduledFor, failedAt: null, error: null } });
   revalidateCommunicationRoutes(communication.leadId, communication.quoteId);
+}
+
+export async function scheduleCommunicationAction(formData: FormData) {
+  return scheduleEmailCommunicationAction(formData);
 }
 function normalizePaymentMethod(value: string) {
   const method = value.trim().toUpperCase().replaceAll(" ", "_").replaceAll("-", "_");
@@ -2390,6 +2400,7 @@ export async function scheduleFollowUpTomorrowAction(quoteId: string) {
     };
   }
 }
+
 
 
 

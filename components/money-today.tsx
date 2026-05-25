@@ -69,6 +69,18 @@ export function MoneyToday({ leads = [], quotes = [], activities = [], assets = 
     if (item.status === "SCHEDULED" && item.scheduledFor) return new Date(item.scheduledFor) <= new Date();
     return ["DRAFT", "READY", "FAILED"].includes(item.status);
   }), [communications]);
+  const emailCommunicationSummary = useMemo(() => {
+    const now = new Date();
+    const endOfToday = new Date(now);
+    endOfToday.setHours(23, 59, 59, 999);
+    const emails = communications.filter((item) => item.channel === "EMAIL");
+    return {
+      dueToday: emails.filter((item) => item.status === "SCHEDULED" && item.scheduledFor && new Date(item.scheduledFor) <= endOfToday).length,
+      overdue: emails.filter((item) => item.status === "SCHEDULED" && item.scheduledFor && new Date(item.scheduledFor) < now).length,
+      failed: emails.filter((item) => item.status === "FAILED").length,
+      ready: emails.filter((item) => ["DRAFT", "READY"].includes(item.status)).length
+    };
+  }, [communications]);
   const metrics = getRevenueMetrics(leads, quotes, activities);
   const brief = getAiRevenueBrief(leads, quotes);
 
@@ -226,7 +238,20 @@ export function MoneyToday({ leads = [], quotes = [], activities = [], assets = 
           title={`${communicationItems.length} client messages need review`}
           description="Drafts, ready messages, failed messages, and scheduled client communication due today."
         />
-        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["Scheduled emails due today", emailCommunicationSummary.dueToday],
+            ["Overdue scheduled emails", emailCommunicationSummary.overdue],
+            ["Failed email sends", emailCommunicationSummary.failed],
+            ["Ready emails not scheduled/sent", emailCommunicationSummary.ready]
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-lg border border-white/10 bg-obsidian/60 p-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-mercury">{label}</p>
+              <p className="mt-2 text-2xl font-black text-white">{value}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
           {communicationItems.map((communication) => {
             const lead = communication.leadId ? leads.find((item) => item.id === communication.leadId) : null;
             return (

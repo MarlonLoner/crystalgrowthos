@@ -4,6 +4,7 @@ import { Copy, Mail, MessageCircle, Send, SkipForward } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { ActionButton } from "@/components/action-button";
+import { scheduleEmailCommunicationAction } from "@/lib/actions";
 import { Panel, SectionHeading } from "@/components/ui";
 import type { CommunicationView } from "@/lib/db-data";
 import { communicationChannelLabel, communicationStatusLabel, communicationTriggerLabel, getCommunicationPriority, getCommunicationSuggestedAction, hasMissingRecipientDetails } from "@/lib/communication-intelligence";
@@ -33,6 +34,11 @@ function waLink(phone: string, body: string) {
 
 function mailto(email: string, subject: string, body: string) {
   return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+function formatDateTime(value: string | null) {
+  if (!value) return "Not scheduled";
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
 function RelatedLinks({ item }: { item: CommunicationQueueItem }) {
@@ -79,14 +85,29 @@ function CommunicationCard({ item, emailTestMode }: { item: CommunicationQueueIt
       {communication.subject ? <p className="mt-4 text-sm font-black text-white">{communication.subject}</p> : null}
       <p className="mt-3 line-clamp-5 whitespace-pre-line text-sm leading-6 text-slate-200">{communication.body}</p>
       <div className="mt-3 grid gap-2 text-xs text-slate-400 sm:grid-cols-2">
-        <span>Scheduled: <b className="text-white">{formatDate(communication.scheduledFor)}</b></span>
+        <span>Scheduled: <b className="text-white">{formatDateTime(communication.scheduledFor)}</b></span>
         <span>Suggested: <b className="text-white">{getCommunicationSuggestedAction(communication)}</b></span>
       </div>
       {missingDetails ? <p className="mt-3 rounded-lg border border-red-300/25 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-100">Missing recipient details for this channel.</p> : null}
       {communication.status === "SKIPPED" && communication.error ? <p className="mt-3 rounded-lg border border-sky-300/25 bg-sky-400/10 px-3 py-2 text-xs font-bold text-sky-100">{communication.error}</p> : null}
       {communication.status === "FAILED" && communication.error ? <p className="mt-3 rounded-lg border border-red-300/25 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-100">{communication.error}</p> : null}
-      {communication.status === "SENT" && communication.sentAt ? <p className="mt-3 rounded-lg border border-emerald-300/25 bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-100">Sent {formatDate(communication.sentAt)}</p> : null}
+      {communication.status === "SENT" && communication.sentAt ? <p className="mt-3 rounded-lg border border-emerald-300/25 bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-100">Sent {formatDateTime(communication.sentAt)}</p> : null}
       <RelatedLinks item={item} />
+      {communication.channel === "EMAIL" && ["DRAFT", "READY", "SCHEDULED"].includes(communication.status) ? (
+        <form action={scheduleEmailCommunicationAction} className="mt-4 grid gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-3 sm:grid-cols-[1fr_auto]">
+          <input type="hidden" name="communicationId" value={communication.id} />
+          <label className="text-xs font-bold text-slate-300">
+            Schedule email
+            <input
+              name="scheduledFor"
+              type="datetime-local"
+              required
+              className="mt-1 w-full rounded-lg border border-white/10 bg-white px-3 py-2 text-sm font-bold text-slate-950 placeholder:text-slate-400 focus:border-aurum focus:outline-none focus:ring-2 focus:ring-aurum/30"
+            />
+          </label>
+          <button type="submit" className="self-end rounded-lg bg-aurum px-3 py-2 text-xs font-black text-obsidian">Schedule Email</button>
+        </form>
+      ) : null}
       <div className="mt-4 flex flex-wrap gap-2">
         <button type="button" onClick={copyBody} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-black text-white"><Copy size={14} className="inline" /> {copied ? "Copied" : "Copy Message"}</button>
         {whatsAppHref ? <a href={whatsAppHref} target="_blank" rel="noreferrer" className="rounded-lg bg-emerald-400 px-3 py-2 text-xs font-black text-obsidian"><MessageCircle size={14} className="inline" /> Open WhatsApp</a> : null}
@@ -152,6 +173,9 @@ export function CommunicationQueue({ communications, emailTestMode = false }: { 
     </div>
   );
 }
+
+
+
 
 
 

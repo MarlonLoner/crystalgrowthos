@@ -693,3 +693,48 @@ Production and follow-up screens can now create EMAIL drafts without sending the
 - Production job email draft buttons choose the trigger from the job status, such as production started, installation scheduled, balance reminder, or review request.
 - Follow-up email draft buttons infer a trigger from the follow-up reason, such as quote follow-up, deposit reminder, mockup follow-up, or review request.
 - Contextual buttons never send email directly. They create or find a Communication Queue draft, where `Send Email` remains the only provider-send action.
+## Feature Set 19: Scheduled Email Automation
+
+Crystal Growth OS now supports scheduled email automation on top of the draft-first Communication Queue.
+
+Safety rules:
+- Only `EMAIL` communications are eligible for automatic scheduled sending.
+- The cron runner only sends records where `status = SCHEDULED` and `scheduledFor <= now`.
+- `DRAFT`, `READY`, `WHATSAPP`, `SMS`, and `INTERNAL_NOTE` communications are never auto-sent.
+- `EMAIL_TEST_MODE=true` is still respected, so scheduled emails go to `EMAIL_TEST_RECIPIENT` first.
+- If `AUTO_EMAIL_ENABLED` is not `true`, the cron endpoint returns a disabled response and sends nothing.
+
+Environment variables:
+```env
+RESEND_API_KEY=""
+EMAIL_FROM="Crystal Branding Studio <no-reply@yourdomain.com>"
+EMAIL_REPLY_TO=""
+EMAIL_TEST_MODE="true"
+EMAIL_TEST_RECIPIENT=""
+CRON_SECRET="replace-with-secure-cron-secret"
+AUTO_EMAIL_ENABLED="false"
+```
+
+Routes:
+- `/communication` schedules EMAIL drafts and still allows manual Send Email.
+- `/api/cron/send-scheduled-emails` runs the scheduled sender and requires `Authorization: Bearer CRON_SECRET` or `?secret=CRON_SECRET`.
+- `/api/debug/scheduled-emails` shows due, upcoming, failed, and recently sent scheduled emails without exposing secrets.
+
+Vercel Cron:
+`vercel.json` runs `/api/cron/send-scheduled-emails` every 15 minutes. Because Vercel Cron header configuration can vary by setup, the route also supports `?secret=` for MVP testing.
+
+Manual test checklist:
+1. Set `CRON_SECRET`, `AUTO_EMAIL_ENABLED=false`, `EMAIL_TEST_MODE=true`, and `EMAIL_TEST_RECIPIENT` in Vercel.
+2. Open `/communication`, find an EMAIL draft, and schedule it a few minutes ahead.
+3. Open `/api/debug/scheduled-emails` and confirm the item appears as upcoming or due.
+4. Visit `/api/cron/send-scheduled-emails?secret=YOUR_SECRET` while disabled and confirm no email sends.
+5. Set `AUTO_EMAIL_ENABLED=true`, redeploy, schedule another test email, and call the cron route again.
+6. Confirm the test email arrives at `EMAIL_TEST_RECIPIENT` and the communication status becomes `SENT`.
+7. Review `/system-health`, `/money-today`, and `/api/debug/scheduled-emails` for updated status.
+
+Production checklist:
+- Keep `EMAIL_TEST_MODE=true` until scheduled email delivery is confirmed.
+- Confirm `EMAIL_FROM` uses a verified Resend domain, such as `mail.crystalbrandingstudio.com`.
+- Use a strong `CRON_SECRET` and do not expose it publicly.
+- Only set `EMAIL_TEST_MODE=false` after a successful test-mode run.
+

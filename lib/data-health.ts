@@ -118,6 +118,22 @@ export function getDataHealthWarnings(data: DataHealthInput): DataHealthWarning[
   const emailFromConfigured = Boolean(process.env.EMAIL_FROM);
   const emailTestMode = ["1", "true", "yes", "on"].includes(String(process.env.EMAIL_TEST_MODE ?? "").toLowerCase());
   const emailTestRecipientConfigured = Boolean(process.env.EMAIL_TEST_RECIPIENT);
+  const autoEmailEnabled = String(process.env.AUTO_EMAIL_ENABLED ?? "").toLowerCase() === "true";
+  const cronSecretConfigured = Boolean(process.env.CRON_SECRET);
+  if (!autoEmailEnabled) warnings.push({
+    severity: "info",
+    title: "Scheduled email automation disabled",
+    message: "AUTO_EMAIL_ENABLED is not true, so due scheduled EMAIL communications will wait for manual Send Email.",
+    link: "/system-health",
+    count: 1
+  });
+  if (autoEmailEnabled && !cronSecretConfigured) warnings.push({
+    severity: "critical",
+    title: "Cron secret missing",
+    message: "Set CRON_SECRET before enabling scheduled email automation.",
+    link: "/system-health",
+    count: 1
+  });
   if (emailSendingConfigured && !emailFromConfigured) warnings.push({
     severity: "critical",
     title: "Email sending enabled without EMAIL_FROM",
@@ -157,6 +173,24 @@ export function getDataHealthWarnings(data: DataHealthInput): DataHealthWarning[
     count: oldDrafts.length
   });
 
+  const dueScheduledEmails = (data.communications ?? []).filter((item) => item.channel === "EMAIL" && item.status === "SCHEDULED" && dueDate(item.scheduledFor) && dueDate(item.scheduledFor)! <= now);
+  if (dueScheduledEmails.length) warnings.push({
+    severity: autoEmailEnabled ? "warning" : "critical",
+    title: "Due scheduled emails",
+    message: autoEmailEnabled ? "Scheduled EMAIL communications are due and should be handled by the cron run." : "Scheduled EMAIL communications are due, but automation is disabled.",
+    link: "/communication",
+    count: dueScheduledEmails.length
+  });
+
+  const failedScheduledEmails = (data.communications ?? []).filter((item) => item.channel === "EMAIL" && item.status === "FAILED" && item.scheduledFor);
+  if (failedScheduledEmails.length) warnings.push({
+    severity: "critical",
+    title: "Failed scheduled emails",
+    message: "Some scheduled EMAIL communications failed and need review before retrying.",
+    link: "/communication",
+    count: failedScheduledEmails.length
+  });
+
   const overdueCommunications = (data.communications ?? []).filter((item) => item.status === "SCHEDULED" && dueDate(item.scheduledFor) && dueDate(item.scheduledFor)! < now);
   if (overdueCommunications.length) warnings.push({
     severity: "critical",
@@ -194,5 +228,6 @@ export function getDataHealthWarnings(data: DataHealthInput): DataHealthWarning[
 
   return warnings;
 }
+
 
 

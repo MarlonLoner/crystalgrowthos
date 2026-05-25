@@ -17,6 +17,9 @@ export async function GET() {
   const communications = data.communications.map((item) => item.communication);
   const emailStatus = getEmailProviderStatus();
   const emailCommunications = communications.filter((item) => item.channel === "EMAIL");
+  const now = new Date();
+  const dueScheduledEmails = emailCommunications.filter((item) => item.status === "SCHEDULED" && item.scheduledFor && new Date(item.scheduledFor) <= now);
+  const upcomingScheduledEmails = emailCommunications.filter((item) => item.status === "SCHEDULED" && item.scheduledFor && new Date(item.scheduledFor) > now);
 
   return NextResponse.json({
     ok: data.source === "database",
@@ -25,6 +28,15 @@ export async function GET() {
     byStatus: countBy(communications.map((item) => item.status)),
     byChannel: countBy(communications.map((item) => item.channel)),
     byTrigger: countBy(communications.map((item) => item.trigger)),
+    scheduledEmailAutomation: {
+      autoEmailEnabled: String(process.env.AUTO_EMAIL_ENABLED ?? "").toLowerCase() === "true",
+      cronSecretConfigured: Boolean(process.env.CRON_SECRET),
+      dueScheduledEmailCount: dueScheduledEmails.length,
+      upcomingScheduledEmailCount: upcomingScheduledEmails.length,
+      failedEmailCount: emailCommunications.filter((item) => item.status === "FAILED").length,
+      lastSentEmails: emailCommunications.filter((item) => item.status === "SENT").slice(0, 10),
+      lastFailedEmails: emailCommunications.filter((item) => item.status === "FAILED").slice(0, 10)
+    },
     missingRecipientDetails: communications.filter(hasMissingRecipientDetails).map((item) => ({ id: item.id, channel: item.channel, trigger: item.trigger, leadId: item.leadId })),
     latestDrafts: data.communications.slice(0, 20).map((item) => ({
       communication: item.communication,
@@ -48,6 +60,7 @@ export async function GET() {
     duplicatePrevention: "Drafts are throttled by lead, trigger, channel, priority, and recent active drafts. Suppressed drafts are audited as INTERNAL_NOTE/SKIPPED records."
   });
 }
+
 
 
 

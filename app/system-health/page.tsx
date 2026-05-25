@@ -45,6 +45,11 @@ export default async function SystemHealthPage() {
 
   const authEnabled = authProtectionConfigured();
   const emailStatus = getEmailProviderStatus();
+  const autoEmailEnabled = String(process.env.AUTO_EMAIL_ENABLED ?? "").toLowerCase() === "true";
+  const cronSecretConfigured = Boolean(process.env.CRON_SECRET);
+  const now = new Date();
+  const dueScheduledEmails = (data.communications ?? []).filter((item) => item.channel === "EMAIL" && item.status === "SCHEDULED" && item.scheduledFor && new Date(item.scheduledFor) <= now).length;
+  const failedScheduledEmails = (data.communications ?? []).filter((item) => item.channel === "EMAIL" && item.status === "FAILED" && item.scheduledFor).length;
 
   const debugLinks = [
     ["Production debug", "/api/debug/production"],
@@ -52,6 +57,7 @@ export default async function SystemHealthPage() {
     ["Proof sync", "/api/debug/proof/sync"],
     ["Content debug", "/api/debug/content"],
     ["Communication debug", "/api/debug/communication"],
+    ["Scheduled email debug", "/api/debug/scheduled-emails"],
     ["Debug route index", "/api/debug"]
   ] as const;
 
@@ -76,6 +82,10 @@ export default async function SystemHealthPage() {
             <span className={`rounded-lg border px-3 py-2 text-sm font-black ${emailStatus.emailFromConfigured ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100" : "border-red-300/30 bg-red-500/10 text-red-100"}`}>EMAIL_FROM {emailStatus.emailFromConfigured ? "set" : "missing"}</span>
             <span className={`rounded-lg border px-3 py-2 text-sm font-black ${emailStatus.testMode ? "border-sky-300/30 bg-sky-400/10 text-sky-100" : "border-white/10 bg-white/[0.04] text-slate-300"}`}>Email test mode {emailStatus.testMode ? "active" : "off"}</span>
             {emailStatus.testMode ? <span className={`rounded-lg border px-3 py-2 text-sm font-black ${emailStatus.testRecipientConfigured ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100" : "border-red-300/30 bg-red-500/10 text-red-100"}`}>Test recipient {emailStatus.testRecipientConfigured ? "set" : "missing"}</span> : null}
+            <span className={`rounded-lg border px-3 py-2 text-sm font-black ${autoEmailEnabled ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100" : "border-aurum/30 bg-aurum/10 text-aurum"}`}>Scheduled email automation {autoEmailEnabled ? "enabled" : "disabled"}</span>
+            <span className={`rounded-lg border px-3 py-2 text-sm font-black ${cronSecretConfigured ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100" : "border-red-300/30 bg-red-500/10 text-red-100"}`}>CRON_SECRET {cronSecretConfigured ? "set" : "missing"}</span>
+            <span className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold text-slate-300">Due scheduled emails: {dueScheduledEmails}</span>
+            <span className={`rounded-lg border px-3 py-2 text-sm font-black ${failedScheduledEmails ? "border-red-300/30 bg-red-500/10 text-red-100" : "border-white/10 bg-white/[0.04] text-slate-300"}`}>Failed scheduled sends: {failedScheduledEmails}</span>
           </div>
         </Panel>
 
@@ -117,6 +127,8 @@ export default async function SystemHealthPage() {
     </DashboardShell>
   );
 }
+
+
 
 
 
