@@ -68,11 +68,9 @@ function ScheduleEmailControls({ communicationId }: { communicationId: string })
     });
   }
 
-  function schedulePreset(preset: string) {
-    const formData = new FormData();
-    formData.set("communicationId", communicationId);
-    formData.set("preset", preset);
-    runSchedule(formData);
+  function scheduleForm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    runSchedule(new FormData(event.currentTarget));
   }
 
   function scheduleCustom(event: FormEvent<HTMLFormElement>) {
@@ -92,32 +90,38 @@ function ScheduleEmailControls({ communicationId }: { communicationId: string })
       <p className="text-xs font-black uppercase tracking-[0.14em] text-aurum">Quick schedule</p>
       <div className="mt-2 flex flex-wrap gap-2">
         {schedulePresets.map((preset) => (
-          <button
-            key={preset.value}
-            type="button"
-            disabled={isPending}
-            onClick={() => schedulePreset(preset.value)}
-            className="rounded-lg bg-white/10 px-3 py-2 text-xs font-black text-white transition hover:bg-white/15 disabled:opacity-60"
-          >
-            {preset.label}
-          </button>
+          <form key={preset.value} onSubmit={scheduleForm} noValidate>
+            <input type="hidden" name="communicationId" value={communicationId} />
+            <input type="hidden" name="preset" value={preset.value} />
+            <button
+              type="submit"
+              disabled={isPending}
+              className="rounded-lg bg-white/10 px-3 py-2 text-xs font-black text-white transition hover:bg-white/15 disabled:opacity-60"
+            >
+              {preset.label}
+            </button>
+          </form>
         ))}
       </div>
-      <form onSubmit={scheduleCustom} className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+      <form onSubmit={scheduleCustom} noValidate className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
         <input type="hidden" name="communicationId" value={communicationId} />
         <label className="text-xs font-bold text-slate-300">
-          Date
+          Date <span className="font-normal text-slate-500">YYYY-MM-DD</span>
           <input
             name="scheduleDate"
-            type="date"
+            type="text"
+            inputMode="numeric"
+            placeholder="YYYY-MM-DD"
             className="mt-1 w-full rounded-lg border border-white/10 bg-white px-3 py-2 text-sm font-bold text-slate-950 placeholder:text-slate-400 focus:border-aurum focus:outline-none focus:ring-2 focus:ring-aurum/30"
           />
         </label>
         <label className="text-xs font-bold text-slate-300">
-          Time
+          Time <span className="font-normal text-slate-500">HH:mm</span>
           <input
             name="scheduleTime"
-            type="time"
+            type="text"
+            inputMode="numeric"
+            placeholder="HH:mm"
             className="mt-1 w-full rounded-lg border border-white/10 bg-white px-3 py-2 text-sm font-bold text-slate-950 placeholder:text-slate-400 focus:border-aurum focus:outline-none focus:ring-2 focus:ring-aurum/30"
           />
         </label>
@@ -248,6 +252,8 @@ export function CommunicationQueue({ communications, emailTestMode = false }: { 
     </div>
   );
 }
+
+
 
 
 

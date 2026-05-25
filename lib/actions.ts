@@ -2140,6 +2140,16 @@ function resolveSchedulePreset(preset: string) {
   return null;
 }
 
+function parseCustomSchedule(scheduleDate: string, scheduleTime: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(scheduleDate) || !/^\d{2}:\d{2}$/.test(scheduleTime)) return null;
+  const [year, month, day] = scheduleDate.split("-").map(Number);
+  const [hour, minute] = scheduleTime.split(":").map(Number);
+  const value = new Date(year, month - 1, day, hour, minute, 0, 0);
+  if (!isValidDate(value)) return null;
+  if (value.getFullYear() !== year || value.getMonth() !== month - 1 || value.getDate() !== day || value.getHours() !== hour || value.getMinutes() !== minute) return null;
+  return value;
+}
+
 function resolveEmailSchedule(formData: FormData) {
   const preset = requiredString(formData, "preset");
   const scheduledForValue = requiredString(formData, "scheduledFor");
@@ -2154,10 +2164,7 @@ function resolveEmailSchedule(formData: FormData) {
     return isValidDate(value) ? value : null;
   }
 
-  if (scheduleDate && scheduleTime) {
-    const value = new Date(`${scheduleDate}T${scheduleTime}`);
-    return isValidDate(value) ? value : null;
-  }
+  if (scheduleDate || scheduleTime) return parseCustomSchedule(scheduleDate, scheduleTime);
 
   return null;
 }
@@ -2167,11 +2174,11 @@ export async function scheduleEmailCommunicationAction(formData: FormData) {
     const id = requiredString(formData, "communicationId");
     const scheduledFor = resolveEmailSchedule(formData);
     if (!id) return { ok: false, message: "Communication id is required." };
-    if (!scheduledFor || scheduledFor <= new Date()) return { ok: false, message: "Please choose a future date and time." };
+    if (!scheduledFor || scheduledFor <= new Date()) return { ok: false, message: "Please choose a future date and time using YYYY-MM-DD and HH:mm." };
     const existing = await prisma.communication.findUnique({ where: { id } });
     if (!existing) return { ok: false, message: `Communication not found: ${id}` };
     if (existing.channel !== CommunicationChannel.EMAIL) return { ok: false, message: "Only EMAIL communications can be scheduled for automatic sending." };
-    if (existing.status === CommunicationStatus.SENT || existing.status === CommunicationStatus.SKIPPED || existing.status === CommunicationStatus.FAILED) return { ok: false, message: "Only draft or ready emails can be scheduled." };
+    if (existing.status !== CommunicationStatus.DRAFT && existing.status !== CommunicationStatus.READY) return { ok: false, message: "Only draft or ready emails can be scheduled." };
     if (!existing.subject?.trim()) return { ok: false, message: "Email subject is required before scheduling." };
     if (!existing.body.trim()) return { ok: false, message: "Email body is required before scheduling." };
     const communication = await prisma.communication.update({ where: { id }, data: { status: CommunicationStatus.SCHEDULED, scheduledFor, failedAt: null, error: null } });
@@ -2461,6 +2468,8 @@ export async function scheduleFollowUpTomorrowAction(quoteId: string) {
     };
   }
 }
+
+
 
 
 
