@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { generateProofContentDrafts } from "@/lib/proof-content";
 import { captionForProof } from "@/lib/content-templates";
 import { getCommunicationTemplate } from "@/lib/communication-templates";
+import { getCommunicationPriority, getSuppressionReason, priorityRank } from "@/lib/client-message-policy";
 
 const leadStatusMap: Record<string, LeadStatus> = {
   "New Lead": LeadStatus.NEW_LEAD,
@@ -108,6 +109,52 @@ export async function createCommunicationDraft(input: CommunicationDraftInput) {
   };
 
   if (!input.force) {
+    const recentLeadCommunications = input.leadId
+      ? await prisma.communication.findMany({
+          where: {
+            leadId: input.leadId,
+            channel: input.channel,
+            createdAt: { gte: new Date(Date.now() - 48 * 60 * 60 * 1000) }
+          },
+          orderBy: { createdAt: "desc" }
+        })
+      : [];
+
+    const suppressionReason = getSuppressionReason({
+      leadId: input.leadId,
+      trigger: input.trigger,
+      channel: input.channel,
+      windowHours: 48,
+      existing: recentLeadCommunications.map((item) => ({
+        id: item.id,
+        leadId: item.leadId,
+        channel: item.channel,
+        trigger: item.trigger,
+        status: item.status,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt
+      }))
+    });
+
+    if (suppressionReason) {
+      console.log("[communication] draft suppressed", { leadId: input.leadId, trigger: input.trigger, channel: input.channel, reason: suppressionReason });
+      return prisma.communication.create({
+        data: {
+          ...relatedWhere,
+          channel: CommunicationChannel.INTERNAL_NOTE,
+          direction: CommunicationDirection.OUTBOUND,
+          status: CommunicationStatus.SKIPPED,
+          trigger: input.trigger,
+          subject: "Communication suppressed",
+          body: suppressionReason,
+          recipientName: input.recipientName || null,
+          recipientEmail: input.recipientEmail || null,
+          recipientPhone: input.recipientPhone || null,
+          error: suppressionReason
+        }
+      });
+    }
+
     const existing = await prisma.communication.findFirst({
       where: {
         ...relatedWhere,
@@ -1828,6 +1875,54 @@ export async function archiveContentPostAction(postId: string) {
   }
 }
 
+export async function suppressLowPriorityDraftsForLeadAction(leadId: string) {
+  try {
+    if (!leadId) return { ok: false, message: "Missing lead id" };
+    const drafts = await prisma.communication.findMany({
+      where: {
+        leadId,
+        channel: { not: CommunicationChannel.INTERNAL_NOTE },
+        status: { in: [CommunicationStatus.DRAFT, CommunicationStatus.READY] }
+      },
+      orderBy: [{ createdAt: "desc" }]
+    });
+
+    if (drafts.length <= 1) return { ok: true, message: "No cleanup needed", skippedCount: 0 };
+
+    const sorted = [...drafts].sort((a, b) => {
+      const rankDiff = priorityRank(getCommunicationPriority(b.trigger)) - priorityRank(getCommunicationPriority(a.trigger));
+      if (rankDiff !== 0) return rankDiff;
+      return b.createdAt.getTime() - a.createdAt.getTime();
+    });
+    const keep = sorted[0];
+    const suppress = sorted.slice(1);
+    const reason = "Suppressed because a higher-priority client message exists.";
+
+    await prisma.communication.updateMany({
+      where: { id: { in: suppress.map((item) => item.id) } },
+      data: { status: CommunicationStatus.SKIPPED, error: reason }
+    });
+
+    await prisma.communication.create({
+      data: {
+        leadId,
+        channel: CommunicationChannel.INTERNAL_NOTE,
+        direction: CommunicationDirection.OUTBOUND,
+        status: CommunicationStatus.SKIPPED,
+        trigger: keep.trigger,
+        subject: "Communication cleanup",
+        body: `${reason} Kept ${keep.trigger} and skipped ${suppress.length} lower-priority draft(s).`,
+        error: reason
+      }
+    });
+
+    revalidateCommunicationRoutes(leadId);
+    return { ok: true, message: `Cleaned up ${suppress.length} lower-priority draft(s)`, skippedCount: suppress.length };
+  } catch (error) {
+    console.error("[communication-action] suppress low priority failed", { leadId, error });
+    return { ok: false, message: error instanceof Error ? error.message : "Unable to clean up drafts" };
+  }
+}
 export async function markCommunicationReadyAction(id: string) {
   try {
     if (!id) return { ok: false, message: "Missing communication id" };
@@ -2147,6 +2242,9 @@ export async function scheduleFollowUpTomorrowAction(quoteId: string) {
     };
   }
 }
+
+
+
 
 
 

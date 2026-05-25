@@ -634,3 +634,20 @@ Manual test checklist:
 6. Use Copy Message, Open WhatsApp, Mailto, Mark Ready, Mark Sent, and Skip.
 
 Remaining limitation: this layer is draft-first only. Real email/SMS sending can be connected later with a provider such as Resend or another transactional email service.
+
+## Feature Set 17B: Communication Throttle + Best Next Message Logic
+
+The communication engine now throttles draft creation so one client is not flooded with many active messages.
+
+Rules:
+- Same lead + trigger + channel drafts are blocked within 48 hours.
+- A new Draft/Ready message is blocked if the same lead/channel already has an active message from the last 24 hours, unless the new trigger is high priority.
+- Low-priority messages are suppressed when a higher-priority Draft/Ready message already exists for the same lead/channel.
+- Suppressed messages are written as `INTERNAL_NOTE` + `SKIPPED` communication records so automation decisions stay auditable.
+
+Priority examples:
+- High: quote sent, payment received, installation scheduled, balance reminder, job completed.
+- Medium: new lead, assets received, missing assets, mockup sent, production started, review request.
+- Low: quote created, mockup in design, content permission, referral request.
+
+The `/communication` page now groups messages as Needs Review, Ready to Send, Scheduled, Sent, and Skipped/Suppressed. It also highlights leads with multiple active drafts and offers cleanup to keep only the strongest next message.

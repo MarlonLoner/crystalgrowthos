@@ -19,7 +19,13 @@ type CommunicationQueueItem = {
   contentPost: { id: string; title: string } | null;
 };
 
-const statuses = ["DRAFT", "READY", "SCHEDULED", "SENT", "FAILED", "SKIPPED"];
+const sections = [
+  { label: "Needs Review", statuses: ["DRAFT", "FAILED"] },
+  { label: "Ready to Send", statuses: ["READY"] },
+  { label: "Scheduled", statuses: ["SCHEDULED"] },
+  { label: "Sent", statuses: ["SENT"] },
+  { label: "Skipped / Suppressed", statuses: ["SKIPPED"] }
+];
 
 function waLink(phone: string, body: string) {
   return createWhatsAppUrl(phone, body);
@@ -76,6 +82,7 @@ function CommunicationCard({ item }: { item: CommunicationQueueItem }) {
         <span>Suggested: <b className="text-white">{getCommunicationSuggestedAction(communication)}</b></span>
       </div>
       {missingDetails ? <p className="mt-3 rounded-lg border border-red-300/25 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-100">Missing recipient details for this channel.</p> : null}
+      {communication.status === "SKIPPED" && communication.error ? <p className="mt-3 rounded-lg border border-sky-300/25 bg-sky-400/10 px-3 py-2 text-xs font-bold text-sky-100">{communication.error}</p> : null}
       <RelatedLinks item={item} />
       <div className="mt-4 flex flex-wrap gap-2">
         <button type="button" onClick={copyBody} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-black text-white"><Copy size={14} className="inline" /> {copied ? "Copied" : "Copy Message"}</button>
@@ -90,22 +97,50 @@ function CommunicationCard({ item }: { item: CommunicationQueueItem }) {
 }
 
 export function CommunicationQueue({ communications }: { communications: CommunicationQueueItem[] }) {
+  const activeByLead = communications.reduce<Record<string, CommunicationQueueItem[]>>((acc, item) => {
+    const leadId = item.communication.leadId;
+    if (!leadId || !["DRAFT", "READY"].includes(item.communication.status)) return acc;
+    acc[leadId] = [...(acc[leadId] ?? []), item];
+    return acc;
+  }, {});
+  const noisyLeads = Object.entries(activeByLead).filter(([, items]) => items.length > 1);
+
   return (
     <div className="space-y-6">
       <Panel>
-        <SectionHeading eyebrow="Client Messages" title="Communication Queue" description="Draft-first client communication for leads, mockups, quotes, payments, production, reviews, referrals, and content permission." />
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-          {statuses.map((status) => <div key={status} className="rounded-lg border border-white/10 bg-obsidian/60 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-mercury">{communicationStatusLabel(status)}</p><p className="mt-2 text-3xl font-black text-white">{communications.filter((item) => item.communication.status === status).length}</p></div>)}
+        <SectionHeading eyebrow="Client Messages" title="Communication Queue" description="Draft-first client communication with throttling, priority labels, and suppressed automation decisions." />
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {sections.map((section) => <div key={section.label} className="rounded-lg border border-white/10 bg-obsidian/60 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-mercury">{section.label}</p><p className="mt-2 text-3xl font-black text-white">{communications.filter((item) => section.statuses.includes(item.communication.status)).length}</p></div>)}
         </div>
       </Panel>
-      {statuses.map((status) => {
-        const items = communications.filter((item) => item.communication.status === status);
+      {noisyLeads.length ? (
+        <Panel>
+          <SectionHeading eyebrow="Best Next Message" title={`${noisyLeads.length} clients have multiple active drafts`} description="Keep the highest-priority latest message and suppress lower-priority drafts for cleaner client handling." />
+          <div className="mt-4 grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+            {noisyLeads.map(([leadId, items]) => {
+              const sorted = [...items].sort((a, b) => (getCommunicationPriority(b.communication) === "High" ? 3 : getCommunicationPriority(b.communication) === "Medium" ? 2 : 1) - (getCommunicationPriority(a.communication) === "High" ? 3 : getCommunicationPriority(a.communication) === "Medium" ? 2 : 1));
+              const best = sorted[0];
+              return (
+                <div key={leadId} className="rounded-lg border border-aurum/20 bg-aurum/10 p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-aurum">Best next message</p>
+                  <p className="mt-2 font-black text-white">{best.lead?.businessName ?? best.communication.recipientName}</p>
+                  <p className="mt-2 text-sm text-slate-200">Keep: {communicationTriggerLabel(best.communication.trigger)} ({getCommunicationPriority(best.communication)})</p>
+                  <p className="mt-1 text-xs text-mercury">{items.length - 1} lower-priority draft(s) can be suppressed.</p>
+                  <div className="mt-3"><ActionButton action="communication-cleanup" leadId={leadId} className="rounded-lg bg-aurum px-3 py-2 text-xs font-black text-obsidian">Clean up drafts for this client</ActionButton></div>
+                </div>
+              );
+            })}
+          </div>
+        </Panel>
+      ) : null}
+      {sections.map((section) => {
+        const items = communications.filter((item) => section.statuses.includes(item.communication.status));
         return (
-          <Panel key={status}>
-            <SectionHeading eyebrow={communicationStatusLabel(status)} title={`${items.length} messages`} description="Review, copy, open, or mark messages as sent from here." />
+          <Panel key={section.label}>
+            <SectionHeading eyebrow={section.label} title={`${items.length} messages`} description="Review, copy, open, suppress, or mark messages as sent from here." />
             <div className="mt-4 grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
               {items.map((item) => <CommunicationCard key={item.communication.id} item={item} />)}
-              {items.length === 0 ? <p className="text-sm text-mercury">No {communicationStatusLabel(status).toLowerCase()} communications yet. Workflow actions will create drafts automatically.</p> : null}
+              {items.length === 0 ? <p className="text-sm text-mercury">No {section.label.toLowerCase()} communications yet. Workflow actions will create drafts automatically.</p> : null}
             </div>
           </Panel>
         );
@@ -113,4 +148,5 @@ export function CommunicationQueue({ communications }: { communications: Communi
     </div>
   );
 }
+
 

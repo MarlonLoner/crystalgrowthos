@@ -29,6 +29,22 @@ export async function GET() {
       quote: item.quote ? { id: item.quote.id, quoteNumber: item.quote.quoteNumber } : null,
       suggestedAction: getCommunicationSuggestedAction(item.communication)
     })),
-    duplicatePrevention: "Drafts are de-duped by trigger, channel, status, and related lead/quote/job/proof/content ids."
+    latestSuppressed: communications.filter((item) => item.status === "SKIPPED").slice(0, 20),
+    duplicateDraftCandidates: Object.entries(communications.reduce<Record<string, typeof communications>>((acc, item) => {
+      if (!item.leadId || !["DRAFT", "READY"].includes(item.status)) return acc;
+      const key = `${item.leadId}:${item.channel}:${item.trigger}`;
+      acc[key] = [...(acc[key] ?? []), item];
+      return acc;
+    }, {})).filter(([, items]) => items.length > 1).map(([key, items]) => ({ key, count: items.length, ids: items.map((item) => item.id) })),
+    leadsWithMoreThanThreeDrafts: Object.entries(communications.reduce<Record<string, typeof communications>>((acc, item) => {
+      if (!item.leadId || !["DRAFT", "READY"].includes(item.status)) return acc;
+      acc[item.leadId] = [...(acc[item.leadId] ?? []), item];
+      return acc;
+    }, {})).filter(([, items]) => items.length > 3).map(([leadId, items]) => ({ leadId, count: items.length, triggers: items.map((item) => item.trigger) })),
+    suggestedCleanupOpportunities: "Use the Communication Queue cleanup button for leads with multiple active drafts.",
+    duplicatePrevention: "Drafts are throttled by lead, trigger, channel, priority, and recent active drafts. Suppressed drafts are audited as INTERNAL_NOTE/SKIPPED records."
   });
 }
+
+
+

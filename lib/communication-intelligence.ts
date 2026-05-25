@@ -1,4 +1,5 @@
 ﻿import type { CommunicationView } from "@/lib/db-data";
+import { getCommunicationPriority as getTriggerPriority } from "@/lib/client-message-policy";
 
 export function communicationChannelLabel(channel: string) {
   return channel.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -25,8 +26,8 @@ export function hasMissingRecipientDetails(communication: Pick<CommunicationView
 
 export function getCommunicationPriority(communication: CommunicationView): "High" | "Medium" | "Low" {
   if (communication.status === "FAILED" || isCommunicationOverdue(communication) || hasMissingRecipientDetails(communication)) return "High";
-  if (["READY", "SCHEDULED"].includes(communication.status)) return "Medium";
-  return "Low";
+  const priority = getTriggerPriority(communication.trigger);
+  return priority === "HIGH" ? "High" : priority === "MEDIUM" ? "Medium" : "Low";
 }
 
 export function getCommunicationSuggestedAction(communication: CommunicationView) {
@@ -39,3 +40,4 @@ export function getCommunicationSuggestedAction(communication: CommunicationView
   if (communication.status === "SKIPPED") return "Skipped";
   return "Review communication";
 }
+

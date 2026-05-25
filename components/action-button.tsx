@@ -23,6 +23,7 @@ import {
   requestReviewAction,
   scheduleFollowUpTomorrowAction,
   startProductionAction,
+  suppressLowPriorityDraftsForLeadAction,
   markContentPublishedAction,
   markContentReadyAction,
   markCommunicationReadyAction,
@@ -58,7 +59,8 @@ type ActionKind =
   | "communication-ready"
   | "communication-sent"
   | "communication-skipped"
-  | "communication-scheduled";
+  | "communication-scheduled"
+  | "communication-cleanup";
 
 export function ActionButton({
   children,
@@ -95,7 +97,7 @@ export function ActionButton({
     setMessage("");
     startTransition(async () => {
       try {
-        if (action.startsWith("communication-") && !communicationId) {
+        if (action.startsWith("communication-") && action !== "communication-cleanup" && !communicationId) {
           setMessage("Failed to save: Missing communication id");
           return;
         }
@@ -151,7 +153,9 @@ export function ActionButton({
                                                           ? await markCommunicationSentAction(communicationId)
                                                           : action === "communication-skipped" && communicationId
                                                             ? await markCommunicationSkippedAction(communicationId)
-                                                            : { ok: false, message: "Missing action data" };
+                                                            : action === "communication-cleanup" && leadId
+                                                              ? await suppressLowPriorityDraftsForLeadAction(leadId)
+                                                              : { ok: false, message: "Missing action data" };
 
         if (result.ok) {
           setMessage(result.message ?? "Saved to database");
@@ -174,6 +178,8 @@ export function ActionButton({
     </span>
   );
 }
+
+
 
 
 
