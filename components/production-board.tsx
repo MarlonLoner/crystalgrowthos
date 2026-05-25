@@ -1,5 +1,5 @@
-import Link from "next/link";
-import { CalendarClock, CheckCircle2, Factory, Hammer, MessageCircle, Paintbrush, Truck, WalletCards } from "lucide-react";
+﻿import Link from "next/link";
+import { CalendarClock, CheckCircle2, Factory, Hammer, Mail, MessageCircle, Paintbrush, Truck, WalletCards } from "lucide-react";
 import { ActionButton } from "@/components/action-button";
 import { Panel, SectionHeading } from "@/components/ui";
 import { scheduleInstallationAction } from "@/lib/actions";
@@ -38,6 +38,13 @@ function priorityClass(priority: string) {
   return "border-white/10 bg-white/8 text-slate-300";
 }
 
+function emailTriggerForProductionStatus(status: string) {
+  if (status === "INSTALLATION_SCHEDULED") return "INSTALLATION_SCHEDULED";
+  if (status === "INSTALLED_DELIVERED" || status === "AWAITING_BALANCE") return "BALANCE_REMINDER";
+  if (status === "COMPLETED" || status === "REVIEW_REQUESTED") return "REVIEW_REQUEST";
+  if (status === "READY_TO_START" || status === "DESIGN_ARTWORK" || status === "PRINTING_FABRICATION") return "PRODUCTION_STARTED";
+  return "CUSTOM";
+}
 function ProductionCard({ item }: { item: ProductionBoardItem }) {
   const { job, lead, quote, payments, proofAssets = [] } = item;
   const summary = getProductionSummary(job, quote, payments);
@@ -72,6 +79,7 @@ function ProductionCard({ item }: { item: ProductionBoardItem }) {
       <div className="mt-4 flex flex-wrap gap-2">
         <Link href={`/leads/${lead.id}`} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white">View Lead</Link>
         <Link href={`/quotes/${quote.id}`} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white">View Quote</Link>
+        <ActionButton action="create-email-draft" leadId={lead.id} quoteId={quote.id} jobId={job.id} trigger={emailTriggerForProductionStatus(job.status)} contextType="production" className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" title="Create email draft"><Mail size={14} className="inline" /> Email Draft</ActionButton>
         <ActionButton action="start-production" jobId={job.id} className="rounded-lg bg-aurum px-3 py-2 text-xs font-black text-obsidian"><Factory size={14} className="inline" /> Start Production</ActionButton>
         <ActionButton action="design-artwork" jobId={job.id} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><Paintbrush size={14} className="inline" /> Mark Design Approved</ActionButton>
         <ActionButton action="printing-fabrication" jobId={job.id} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><Hammer size={14} className="inline" /> Mark In Fabrication</ActionButton>
@@ -129,6 +137,9 @@ export function ProductionBoard({ items, source = "database" }: ProductionBoardP
     </div>
   );
 }
+
+
+
 
 
 

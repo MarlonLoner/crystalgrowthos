@@ -685,3 +685,11 @@ Remaining limitations:
 - No inbound email handling yet.
 - No unsubscribe/preferences yet.
 - No bulk campaign sending yet.
+
+### Contextual Email Draft Buttons
+
+Production and follow-up screens can now create EMAIL drafts without sending them. These buttons are intentionally labeled as email draft actions:
+
+- Production job email draft buttons choose the trigger from the job status, such as production started, installation scheduled, balance reminder, or review request.
+- Follow-up email draft buttons infer a trigger from the follow-up reason, such as quote follow-up, deposit reminder, mockup follow-up, or review request.
+- Contextual buttons never send email directly. They create or find a Communication Queue draft, where `Send Email` remains the only provider-send action.

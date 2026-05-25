@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { CheckCircle2, FilePlus2, Mail, MessageCircle, MoveRight } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -41,6 +41,15 @@ function suggestedAction(lead: Lead) {
   return "Call or WhatsApp today and move the lead to the next pipeline stage.";
 }
 
+function emailTriggerForFollowUp(lead: Lead, reason: string) {
+  const text = `${lead.status} ${reason}`;
+  if (/review|testimonial/i.test(text)) return "REVIEW_REQUEST";
+  if (/payment|deposit/i.test(text)) return "DEPOSIT_REMINDER";
+  if (/balance/i.test(text)) return "BALANCE_REMINDER";
+  if (/quote/i.test(text)) return lead.status === "Quote Sent" ? "QUOTE_SENT" : "DEPOSIT_REMINDER";
+  if (/mockup/i.test(text)) return "MOCKUP_SENT";
+  return "CUSTOM";
+}
 function shouldShow(lead: Lead, sourceQuotes: Quote[]) {
   const due = new Date(lead.nextFollowUpDate) <= new Date(today);
   const hasPendingQuote = sourceQuotes.some((quote) => quote.leadId === lead.id && ["Sent", "Viewed", "Follow-Up Due"].includes(quote.status));
@@ -113,7 +122,7 @@ export function FollowUpQueue({ leads = mockLeads, quotes = mockQuotes }: { lead
                     <td className="px-4 py-4">
                       <div className="flex flex-wrap gap-2">
                         <button className="rounded-lg bg-aurum px-3 py-2 text-xs font-black text-obsidian" onClick={() => generateMessage(lead, "whatsapp")}><MessageCircle size={14} className="inline" /> WhatsApp</button>
-                        <button className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" onClick={() => generateMessage(lead, "email")}><Mail size={14} className="inline" /> Email</button>
+                        <ActionButton action="create-email-draft" leadId={lead.id} trigger={emailTriggerForFollowUp(lead, getFollowUpReason(lead, quotes))} contextType="follow-up" className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" title="Create email draft"><Mail size={14} className="inline" /> Email Draft</ActionButton>
                         <ActionButton action="mark-contacted" leadId={lead.id} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><CheckCircle2 size={14} className="inline" /> Mark Contacted</ActionButton>
                         <button className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"><MoveRight size={14} className="inline" /> Stage</button>
                         <a className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/quotes/new?leadId=${lead.id}`}><FilePlus2 size={14} className="inline" /> Quote</a>
@@ -141,6 +150,7 @@ export function FollowUpQueue({ leads = mockLeads, quotes = mockQuotes }: { lead
     </div>
   );
 }
+
 
 
 

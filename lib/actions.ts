@@ -1924,6 +1924,98 @@ export async function suppressLowPriorityDraftsForLeadAction(leadId: string) {
     return { ok: false, message: error instanceof Error ? error.message : "Unable to clean up drafts" };
   }
 }
+function normalizeCommunicationTrigger(value?: string | null): CommunicationTrigger {
+  const key = String(value ?? "CUSTOM").trim().toUpperCase().replaceAll(" ", "_").replaceAll("-", "_");
+  return (CommunicationTrigger as Record<string, CommunicationTrigger>)[key] ?? CommunicationTrigger.CUSTOM;
+}
+
+function inferCommunicationTriggerFromText(text: string): CommunicationTrigger {
+  if (/review|testimonial/i.test(text)) return CommunicationTrigger.REVIEW_REQUEST;
+  if (/payment|deposit/i.test(text)) return CommunicationTrigger.DEPOSIT_REMINDER;
+  if (/balance/i.test(text)) return CommunicationTrigger.BALANCE_REMINDER;
+  if (/quote/i.test(text)) return CommunicationTrigger.QUOTE_SENT;
+  if (/mockup/i.test(text)) return CommunicationTrigger.MOCKUP_SENT;
+  if (/install/i.test(text)) return CommunicationTrigger.INSTALLATION_SCHEDULED;
+  if (/production|fabrication|design/i.test(text)) return CommunicationTrigger.PRODUCTION_STARTED;
+  return CommunicationTrigger.CUSTOM;
+}
+
+function triggerForProductionStatus(status?: string | null): CommunicationTrigger {
+  if (status === "INSTALLATION_SCHEDULED") return CommunicationTrigger.INSTALLATION_SCHEDULED;
+  if (status === "INSTALLED_DELIVERED" || status === "AWAITING_BALANCE") return CommunicationTrigger.BALANCE_REMINDER;
+  if (status === "COMPLETED" || status === "REVIEW_REQUESTED") return CommunicationTrigger.REVIEW_REQUEST;
+  if (status === "READY_TO_START" || status === "DESIGN_ARTWORK" || status === "PRINTING_FABRICATION") return CommunicationTrigger.PRODUCTION_STARTED;
+  return CommunicationTrigger.CUSTOM;
+}
+
+export async function createContextualEmailDraftAction(input: {
+  leadId?: string;
+  quoteId?: string;
+  productionJobId?: string;
+  jobId?: string;
+  proofAssetId?: string;
+  contentPostId?: string;
+  activityId?: string;
+  trigger?: string;
+  contextType?: string;
+}) {
+  try {
+    const jobId = input.productionJobId ?? input.jobId;
+    const [activity, job, quote, proof, contentPost] = await Promise.all([
+      input.activityId ? prisma.followUpActivity.findUnique({ where: { id: input.activityId } }) : null,
+      jobId ? prisma.productionJob.findUnique({ where: { id: jobId }, include: { lead: true, quote: true } }) : null,
+      input.quoteId ? prisma.quote.findUnique({ where: { id: input.quoteId }, include: { lead: true } }) : null,
+      input.proofAssetId ? prisma.proofAsset.findUnique({ where: { id: input.proofAssetId }, include: { lead: true, quote: true, productionJob: true } }) : null,
+      input.contentPostId ? prisma.contentPost.findUnique({ where: { id: input.contentPostId }, include: { lead: true, quote: true, productionJob: true, proofAsset: true } }) : null
+    ]);
+
+    const leadId = input.leadId ?? activity?.leadId ?? job?.leadId ?? quote?.leadId ?? proof?.leadId ?? contentPost?.leadId ?? undefined;
+    const lead = leadId
+      ? await prisma.lead.findUnique({ where: { id: leadId } })
+      : null;
+
+    if (!lead) return { ok: false, message: "No client record found for this email draft." };
+    if (!lead.email) return { ok: false, message: "No email address found for this client." };
+
+    const inferredTrigger = input.trigger
+      ? normalizeCommunicationTrigger(input.trigger)
+      : job
+        ? triggerForProductionStatus(job.status)
+        : activity
+          ? inferCommunicationTriggerFromText(`${activity.title} ${activity.note ?? ""}`)
+          : quote
+            ? inferCommunicationTriggerFromText(`${quote.status} ${quote.notes ?? ""}`)
+            : proof
+              ? inferCommunicationTriggerFromText(`${proof.type} ${proof.title} ${proof.content ?? ""}`)
+              : CommunicationTrigger.CUSTOM;
+
+    const communication = await createCommunicationFromContext({
+      leadId: lead.id,
+      quoteId: input.quoteId ?? job?.quoteId ?? proof?.quoteId ?? contentPost?.quoteId ?? null,
+      productionJobId: job?.id ?? proof?.productionJobId ?? contentPost?.productionJobId ?? null,
+      proofAssetId: proof?.id ?? contentPost?.proofAssetId ?? null,
+      contentPostId: contentPost?.id ?? null,
+      trigger: inferredTrigger,
+      channel: CommunicationChannel.EMAIL
+    });
+
+    if (!communication) return { ok: false, message: "Unable to create email draft." };
+    revalidateCommunicationRoutes(lead.id, communication.quoteId);
+    revalidatePath("/follow-ups");
+    revalidatePath("/production");
+    return {
+      ok: true,
+      message: communication.status === CommunicationStatus.SKIPPED
+        ? "Email draft suppressed by communication policy. Review it in Communication Queue."
+        : "Email draft created. Review it in Communication Queue.",
+      communicationId: communication.id,
+      status: communication.status
+    };
+  } catch (error) {
+    console.error("[communication-action] contextual email draft failed", { input, error });
+    return { ok: false, message: error instanceof Error ? error.message : "Unable to create contextual email draft" };
+  }
+}
 export async function sendEmailCommunicationAction(communicationId: string) {
   try {
     if (!communicationId) return { ok: false, message: "Missing communication id" };
@@ -2298,6 +2390,7 @@ export async function scheduleFollowUpTomorrowAction(quoteId: string) {
     };
   }
 }
+
 
 
 

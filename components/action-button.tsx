@@ -6,6 +6,7 @@ import {
   archiveContentPostAction,
   askForReferralAction,
   createContentDraftFromProofAction,
+  createContextualEmailDraftAction,
   completeFollowUpActivityAction,
   draftSocialPostAction,
   markDesignArtworkAction,
@@ -57,6 +58,7 @@ type ActionKind =
   | "content-ready"
   | "content-published"
   | "content-archived"
+  | "create-email-draft"
   | "communication-ready"
   | "communication-sent"
   | "communication-skipped"
@@ -76,7 +78,11 @@ export function ActionButton({
   jobId,
   proofAssetId,
   contentPostId,
-  communicationId
+  communicationId,
+  trigger,
+  title,
+  ariaLabel,
+  contextType
 }: {
   children: React.ReactNode;
   className: string;
@@ -90,6 +96,10 @@ export function ActionButton({
   proofAssetId?: string;
   contentPostId?: string;
   communicationId?: string;
+  trigger?: string;
+  title?: string;
+  ariaLabel?: string;
+  contextType?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -149,6 +159,8 @@ export function ActionButton({
                                                     ? await markContentPublishedAction(contentPostId)
                                                     : action === "content-archived" && contentPostId
                                                       ? await archiveContentPostAction(contentPostId)
+                                                      : action === "create-email-draft"
+                                                        ? await createContextualEmailDraftAction({ leadId, quoteId, jobId, proofAssetId, contentPostId, activityId, trigger, contextType })
                                                       : action === "communication-ready" && communicationId
                                                         ? await markCommunicationReadyAction(communicationId)
                                                         : action === "communication-sent" && communicationId
@@ -175,13 +187,15 @@ export function ActionButton({
 
   return (
     <span className="inline-flex flex-col gap-1">
-      <button type="button" onClick={runAction} disabled={isPending} className={className}>
+      <button type="button" onClick={runAction} disabled={isPending} className={className} title={title} aria-label={ariaLabel ?? title}>
         {isPending ? "Working..." : children}
       </button>
       {message ? <span className="text-[11px] font-bold text-aurum">{message}</span> : null}
     </span>
   );
 }
+
+
 
 
 
