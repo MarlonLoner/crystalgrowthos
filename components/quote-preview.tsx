@@ -1,10 +1,11 @@
-﻿import Link from "next/link";
-import { Download, Printer } from "lucide-react";
+import Link from "next/link";
+import { Download, ExternalLink, Printer } from "lucide-react";
 import { Lead, Quote, quoteFinalTotal, quoteSubtotal } from "@/lib/mock-data";
 import { currency, formatDate } from "@/lib/utils";
 import { buttonClass, Panel } from "@/components/ui";
 import { QuoteSendActions } from "@/components/quote-send-actions";
 import { QuotePaymentSection } from "@/components/quote-payment-section";
+import { CopyPublicQuoteLink } from "@/components/copy-public-quote-link";
 import type { CommunicationView, PaymentView, ProductionJobView } from "@/lib/db-data";
 import { getProductionSummary } from "@/lib/production-intelligence";
 
@@ -17,7 +18,7 @@ export function QuotePreview({ quote, lead, payments = [], productionJob = null,
         <div>
           <p className="text-sm font-black uppercase tracking-[0.2em] text-orange-600">Crystal Branding Studio</p>
           <h1 className="mt-2 text-4xl font-black">Quote</h1>
-          <p className="mt-2 text-slate-600">Clean PDF-style preview for client sending and future export.</p>
+          <p className="mt-2 text-slate-600">Internal quote controls, payment tracking, and branded print/public quote access.</p>
         </div>
         <div className="text-left md:text-right">
           <p className="text-2xl font-black">{quote.quoteNumber}</p>
@@ -92,15 +93,23 @@ export function QuotePreview({ quote, lead, payments = [], productionJob = null,
           </div>
         </div>
       ) : null}
-      <div className="mt-8 flex flex-wrap gap-3 print:hidden">
-        <Link className="inline-flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-black text-white" href={`/quotes/${quote.id}/print`}><Printer size={16} /> Open Print View</Link>
-        <Link className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white" href={`/quotes/${quote.id}/print`}><Download size={16} /> Download / Save as PDF</Link>
-        <Link className={buttonClass} href={`/quotes/${quote.id}/edit`}>Edit Quote</Link>
-        <Link className="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white" href="/quotes">Back to Quotes</Link>
+      <div className="mt-8 rounded-lg border border-slate-200 bg-slate-50 p-4 print:hidden">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Branded Quotation</p>
+        <p className="mt-2 text-sm leading-6 text-slate-600">Open the Crystal-branded quote for browser print, Save as PDF, or sharing through the public quote link.</p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link className="inline-flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-black text-white" href={`/quotes/${quote.id}/print`}><Printer size={16} /> Open Branded Quote</Link>
+          <Link className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white" href={`/quotes/${quote.id}/print`}><Download size={16} /> Print / Save PDF</Link>
+          <Link className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-black text-slate-950 ring-1 ring-slate-200" href={`/q/${encodeURIComponent(quote.quoteNumber)}`}><ExternalLink size={16} /> Public Quote Link</Link>
+          <CopyPublicQuoteLink quoteNumber={quote.quoteNumber} className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-black text-slate-950 ring-1 ring-slate-200" />
+          <Link className={buttonClass} href={`/quotes/${quote.id}/edit`}>Edit Quote</Link>
+          <Link className="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white" href="/quotes">Back to Quotes</Link>
+        </div>
       </div>
     </Panel>
   );
 }
+
+
 
 
 

@@ -1,4 +1,4 @@
-﻿import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency } from "@/lib/formatters";
 
 export type CommunicationTemplateChannel = "EMAIL" | "WHATSAPP" | "SMS" | "INTERNAL_NOTE";
 
@@ -43,6 +43,9 @@ function service(ctx: CommunicationTemplateContext) {
   return ctx.lead?.serviceInterestedIn || ctx.quote?.serviceCategory || "branding project";
 }
 
+function publicQuotePath(ctx: CommunicationTemplateContext) {
+  return ctx.quote?.quoteNumber ? `/q/${encodeURIComponent(ctx.quote.quoteNumber)}` : "the quote link";
+}
 function quoteTotal(ctx: CommunicationTemplateContext) {
   return formatCurrency(ctx.quote?.finalTotal ?? 0);
 }
@@ -76,11 +79,11 @@ const templates: Record<string, (ctx: CommunicationTemplateContext, channel: Com
   }),
   QUOTE_CREATED: (ctx) => ({
     subject: `Quote ${ctx.quote?.quoteNumber ?? ""} prepared`,
-    body: `Hi ${name(ctx)}, we have prepared quote ${ctx.quote?.quoteNumber ?? ""} for ${business(ctx)}. The total is ${quoteTotal(ctx)}. Please review it and tell us if you would like to proceed or adjust anything.`
+    body: `Hi ${name(ctx)}, we have prepared quote ${ctx.quote?.quoteNumber ?? ""} for ${business(ctx)}. The total is ${quoteTotal(ctx)}. You can review the branded quotation here: ${publicQuotePath(ctx)}. Please reply to this email or WhatsApp us to confirm, request changes, or proceed with the deposit/payment step.`
   }),
   QUOTE_SENT: (ctx) => ({
     subject: `Quote ${ctx.quote?.quoteNumber ?? ""} from Crystal Branding Studio`,
-    body: `Hi ${name(ctx)}, quote ${ctx.quote?.quoteNumber ?? ""} for ${business(ctx)} is ready. Total: ${quoteTotal(ctx)}. To proceed, please confirm and we will guide you on the deposit/payment step.`
+    body: `Hi ${name(ctx)}, quote ${ctx.quote?.quoteNumber ?? ""} for ${business(ctx)} is ready. Total: ${quoteTotal(ctx)}. View the branded quotation here: ${publicQuotePath(ctx)}. To proceed, please confirm by reply or WhatsApp so we can guide you on the deposit/payment step.`
   }),
   DEPOSIT_REMINDER: (ctx) => ({
     subject: `Deposit reminder for ${business(ctx)}`,
@@ -127,3 +130,4 @@ const templates: Record<string, (ctx: CommunicationTemplateContext, channel: Com
 export function getCommunicationTemplate(trigger: string, channel: CommunicationTemplateChannel, ctx: CommunicationTemplateContext): CommunicationTemplate {
   return (templates[trigger] ?? templates.CUSTOM)(ctx, channel);
 }
+

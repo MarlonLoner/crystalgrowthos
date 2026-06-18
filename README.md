@@ -1,4 +1,4 @@
-﻿# Crystal Growth OS
+# Crystal Growth OS
 
 Internal AI-powered marketing department dashboard for Crystal Branding Studio.
 
@@ -788,3 +788,36 @@ Known limitations:
 - Template launch approval is a static review label, not a database approval workflow.
 - Public forms are optimized for capture and safety, not full campaign landing-page analytics yet.
 
+
+## Feature Set 21: Crystal-Branded Quotation System
+
+Crystal Growth OS now renders quotes using a white, print-friendly Crystal Branding Studio quotation layout instead of the dark internal dashboard style.
+
+Brand configuration:
+- Business details live in `lib/crystal-brand.ts`.
+- Review the address, phone numbers, emails, website, default currency, and deposit percentage before permanent production launch.
+
+Logo asset:
+- Required official badge logo path: `public/brand/crystal-logo.png`.
+- The quotation view has a text badge fallback if the image is missing, but the real Crystal badge should be added before client-facing PDF use.
+
+Quote routes:
+- Internal quote detail: `/quotes/[id]`
+- Internal branded print/PDF view: `/quotes/[id]/print`
+- Public branded quote view: `/q/[quoteNumber]`
+
+Print/PDF workflow:
+1. Open an existing quote from `/quotes`.
+2. Click `Open Branded Quote` or `Print / Save PDF`.
+3. Use the browser print dialog to print or save as PDF.
+4. Use `Public Quote Link` or `Copy Public Link` to share the public client-safe quote.
+
+Public quote safety:
+- Public quotes show the branded quotation, totals, terms, acceptance instruction, and Crystal contact CTA.
+- Public quotes do not show internal navigation, debug controls, database ids, payment references, activity history, or private workflow data.
+
+Email/WhatsApp quote links:
+- Quote send messaging and deterministic quote email templates now point clients to `/q/[quoteNumber]` for the branded quotation.
+
+Remaining limitation:
+- PDF generation is browser-based for now. Server-generated PDF attachments are not implemented yet.
