@@ -50,6 +50,10 @@ export default async function SystemHealthPage() {
   const now = new Date();
   const dueScheduledEmails = (data.communications ?? []).filter((item) => item.channel === "EMAIL" && item.status === "SCHEDULED" && item.scheduledFor && new Date(item.scheduledFor) <= now).length;
   const failedScheduledEmails = (data.communications ?? []).filter((item) => item.channel === "EMAIL" && item.status === "FAILED" && item.scheduledFor).length;
+  const recentPublicSubmissions = data.leads.filter((lead) => /Website intake|Shopfront mockup/i.test(lead.source) && new Date(lead.createdAt) >= new Date(Date.now() - 24 * 60 * 60 * 1000)).length;
+  const launchCriticals = [!databaseOk, !authEnabled, !process.env.BLOB_READ_WRITE_TOKEN, emailStatus.testMode === false && autoEmailEnabled].filter(Boolean).length;
+  const launchWarnings = warnings.filter((warning) => warning.severity !== "info").length;
+  const launchStatus = launchCriticals ? "NOT READY" : launchWarnings ? "READY WITH WARNINGS" : "READY";
 
   const debugLinks = [
     ["Production debug", "/api/debug/production"],
@@ -57,6 +61,7 @@ export default async function SystemHealthPage() {
     ["Proof sync", "/api/debug/proof/sync"],
     ["Content debug", "/api/debug/content"],
     ["Communication debug", "/api/debug/communication"],
+    ["Launch readiness", "/api/debug/launch-readiness"],
     ["Scheduled email debug", "/api/debug/scheduled-emails"],
     ["Debug route index", "/api/debug"]
   ] as const;
@@ -86,6 +91,9 @@ export default async function SystemHealthPage() {
             <span className={`rounded-lg border px-3 py-2 text-sm font-black ${cronSecretConfigured ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100" : "border-red-300/30 bg-red-500/10 text-red-100"}`}>CRON_SECRET {cronSecretConfigured ? "set" : "missing"}</span>
             <span className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold text-slate-300">Due scheduled emails: {dueScheduledEmails}</span>
             <span className={`rounded-lg border px-3 py-2 text-sm font-black ${failedScheduledEmails ? "border-red-300/30 bg-red-500/10 text-red-100" : "border-white/10 bg-white/[0.04] text-slate-300"}`}>Failed scheduled sends: {failedScheduledEmails}</span>
+            <span className={`rounded-lg border px-3 py-2 text-sm font-black ${process.env.BLOB_READ_WRITE_TOKEN ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100" : "border-red-300/30 bg-red-500/10 text-red-100"}`}>Blob uploads {process.env.BLOB_READ_WRITE_TOKEN ? "configured" : "missing token"}</span>
+            <span className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold text-slate-300">Recent public submissions: {recentPublicSubmissions}</span>
+            <span className={`rounded-lg border px-3 py-2 text-sm font-black ${launchStatus === "READY" ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100" : launchStatus === "READY WITH WARNINGS" ? "border-aurum/30 bg-aurum/10 text-aurum" : "border-red-300/30 bg-red-500/10 text-red-100"}`}>Launch status: {launchStatus}</span>
           </div>
         </Panel>
 
@@ -127,6 +135,8 @@ export default async function SystemHealthPage() {
     </DashboardShell>
   );
 }
+
+
 
 
 

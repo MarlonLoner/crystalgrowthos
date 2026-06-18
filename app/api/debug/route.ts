@@ -12,6 +12,7 @@ export async function GET() {
       "/api/debug/proof/sync",
       "/api/debug/content",
       "/api/debug/communication",
+      "/api/debug/launch-readiness",
       "/api/debug/scheduled-emails",
       "/api/debug/payments/[quoteId]",
       "/api/debug/quote-send/[id]",
@@ -22,3 +23,4 @@ export async function GET() {
     ]
   });
 }
+

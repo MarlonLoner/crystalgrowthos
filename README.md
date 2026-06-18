@@ -737,4 +737,54 @@ Production checklist:
 - Confirm `EMAIL_FROM` uses a verified Resend domain, such as `mail.crystalbrandingstudio.com`.
 - Use a strong `CRON_SECRET` and do not expose it publicly.
 - Only set `EMAIL_TEST_MODE=false` after a successful test-mode run.
+## Feature Set 20: Launch Readiness + Traffic Handling
+
+Crystal Growth OS has a launch hardening layer for public traffic from Crystal Branding Studio.
+
+Public routes:
+- `/intake`
+- `/intake/shopfront`
+- `/intake/thank-you`
+- `/q/[quoteNumber]`
+- `/api/upload` for public shopfront uploads only
+
+Protected/internal routes:
+- Dashboard, Money Today, leads, quotes, mockups, production, proof, content calendar, reports, system health, communication queue, and all `/api/debug/*` routes require the admin gate.
+- The scheduled email cron route is secret-protected by `CRON_SECRET` and still obeys `AUTO_EMAIL_ENABLED`.
+
+Public intake hardening:
+- Public forms now show clearer required/optional labels, expected next steps, privacy copy, and safe error messages.
+- Forms include a honeypot field to reduce bot submissions.
+- Basic in-memory rate limiting slows rapid repeated submissions by client/contact hints while preserving duplicate-safe lead updates.
+- Duplicate emails update the existing lead and create repeat-submission activities rather than crashing.
+
+Upload constraints:
+- Accepted types: JPG, JPEG, PNG, WEBP, SVG.
+- Maximum size: 8MB per file.
+- Empty files, malformed files, unsafe filenames, and missing Blob configuration are rejected with public-safe messages.
+- Uploaded asset metadata is filtered before creating `LeadAsset` records. URL fallbacks must be valid `http` or `https` URLs.
+
+Communication safety:
+- Intake still creates draft communication records where appropriate.
+- Throttling/suppression remains active.
+- DRAFT and READY emails are not auto-sent.
+- Scheduled email automation only runs when `AUTO_EMAIL_ENABLED=true` and the communication is `EMAIL` + `SCHEDULED` + due.
+- Review deterministic templates at `/communication/templates` before disabling `EMAIL_TEST_MODE` or enabling broader launch sending.
+
+Monitoring:
+- `/system-health` shows launch status: `READY`, `READY WITH WARNINGS`, or `NOT READY`.
+- `/api/debug/launch-readiness` shows last-24-hour public submissions, repeat submissions, contact gaps, new-submission communications, upload constraints, and route/auth checks.
+- `/api/debug` includes the launch readiness debug route.
+
+Emergency fallback process:
+1. Keep `EMAIL_TEST_MODE=true` during launch tests.
+2. If uploads fail, prospects can still submit the form and send assets through WhatsApp from `/intake/thank-you`.
+3. If public submission fails, ask prospects to WhatsApp `+263776617821` with their business name, service needed, and deadline.
+4. Check `/system-health` and `/api/debug/launch-readiness` before promoting the forms.
+
+Known limitations:
+- Rate limiting is an MVP in-memory guard and is not a distributed anti-spam system.
+- Upload failure counts are not persisted yet.
+- Template launch approval is a static review label, not a database approval workflow.
+- Public forms are optimized for capture and safety, not full campaign landing-page analytics yet.
 

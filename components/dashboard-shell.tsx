@@ -29,7 +29,8 @@ const navGroups = [
       ["Dashboard", "/#dashboard", LayoutDashboard],
       ["Money Today", "/money-today", CircleDollarSign],
       ["System Health", "/system-health", HeartPulse],
-      ["Communication Queue", "/communication", MessagesSquare]
+      ["Communication Queue", "/communication", MessagesSquare],
+      ["Templates", "/communication/templates", Mail]
     ]
   },
   {
@@ -111,6 +112,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
 
 
 

@@ -41,6 +41,21 @@ type MoneyTodayProps = {
 export function MoneyToday({ leads = [], quotes = [], activities = [], assets = [], payments = [], productionJobs = [], proofAssets = [], contentPosts = [], communications = [] }: MoneyTodayProps) {
   const [done, setDone] = useState<string[]>([]);
   const items = useMemo(() => getMoneyActionItems(leads, quotes).filter((item) => !done.includes(item.id)), [leads, quotes, done]);
+  const newEnquiryItems = useMemo(() => {
+    const responseWindowMs = 4 * 60 * 60 * 1000;
+    const now = Date.now();
+    return leads.filter((lead) => {
+      const isPublic = /Website intake|Shopfront mockup/i.test(lead.source);
+      if (!isPublic || lead.lastContactedAt) return false;
+      const hasCommunication = communications.some((item) => item.leadId === lead.id && ["DRAFT", "READY", "SCHEDULED", "SENT"].includes(item.status));
+      const leadAssets = assets.filter((asset) => asset.leadId === lead.id);
+      const missingContact = !lead.email && !lead.phone;
+      const missingShopfrontAsset = /shopfront/i.test(`${lead.source} ${lead.serviceInterestedIn}`) && !leadAssets.some((asset) => asset.type === "SHOPFRONT_IMAGE");
+      const missingLogo = /shopfront/i.test(`${lead.source} ${lead.serviceInterestedIn}`) && !leadAssets.some((asset) => asset.type === "LOGO");
+      const olderThanWindow = lead.createdAt ? now - new Date(lead.createdAt).getTime() > responseWindowMs : false;
+      return missingContact || !hasCommunication || missingShopfrontAsset || missingLogo || olderThanWindow || lead.status === "New Lead";
+    }).slice(0, 8);
+  }, [leads, communications, assets]);
   const mockupItems = useMemo(() => getMockupWorkflowItems(leads, assets, activities, quotes).filter((item) => !done.includes(`mockup-${item.lead.id}`)), [leads, assets, activities, quotes, done]);
   const paymentItems = useMemo(() => quotes.map((quote) => ({ quote, lead: leads.find((lead) => lead.id === quote.leadId), summary: getPaymentSummary(quote, payments.filter((payment) => payment.quoteId === quote.id)) })).filter((item) => item.lead && item.summary.paymentStatus !== "FULLY_PAID" && item.summary.paymentStatus !== "OVERPAID"), [quotes, leads, payments]);
   const productionItems = useMemo(() => productionJobs.map((job) => {
@@ -111,6 +126,39 @@ export function MoneyToday({ leads = [], quotes = [], activities = [], assets = 
               <p className="mt-3 text-2xl font-black text-white">{value}</p>
             </div>
           ))}
+        </div>
+      </Panel>
+
+      <Panel>
+        <SectionHeading
+          eyebrow="Launch Intake"
+          title={`${newEnquiryItems.length} new enquiries requiring response`}
+          description="Fresh public enquiries, missing contact details, missing mockup assets, or missing communication drafts that should be handled before traffic scales."
+        />
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
+          {newEnquiryItems.map((lead) => {
+            const leadAssets = assets.filter((asset) => asset.leadId === lead.id);
+            const hasDraft = communications.some((item) => item.leadId === lead.id && ["DRAFT", "READY", "SCHEDULED", "SENT"].includes(item.status));
+            const missing = [
+              !lead.email && !lead.phone ? "missing contact" : "",
+              !hasDraft ? "missing communication draft" : "",
+              /shopfront/i.test(`${lead.source} ${lead.serviceInterestedIn}`) && !leadAssets.some((asset) => asset.type === "SHOPFRONT_IMAGE") ? "missing shopfront image" : "",
+              /shopfront/i.test(`${lead.source} ${lead.serviceInterestedIn}`) && !leadAssets.some((asset) => asset.type === "LOGO") ? "missing logo" : ""
+            ].filter(Boolean);
+            return (
+              <div key={lead.id} className="rounded-lg border border-white/10 bg-obsidian/60 p-4">
+                <p className="font-black text-white">{lead.businessName}</p>
+                <p className="mt-1 text-xs text-mercury">{lead.name} - {lead.serviceInterestedIn}</p>
+                <p className="mt-3 text-xs text-slate-400">Source: {lead.source}</p>
+                {missing.length ? <p className="mt-2 text-xs font-bold text-aurum">{missing.join(", ")}</p> : <p className="mt-2 text-xs font-bold text-emerald-200">Ready for first response</p>}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Link className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white" href={`/leads/${lead.id}`}>View Lead</Link>
+                  <Link className="rounded-lg bg-aurum px-3 py-2 text-xs font-black text-obsidian" href="/intake/inbox">Intake Inbox</Link>
+                </div>
+              </div>
+            );
+          })}
+          {newEnquiryItems.length === 0 ? <p className="text-sm text-mercury">No fresh public enquiries need special launch attention right now.</p> : null}
         </div>
       </Panel>
 

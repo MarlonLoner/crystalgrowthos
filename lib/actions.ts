@@ -2,6 +2,7 @@
 
 import { CommunicationChannel, CommunicationDirection, CommunicationStatus, CommunicationTrigger, ContentFormat, ContentPlatform, ContentStatus, FollowUpActivityType, LeadStatus, PaymentMethod, Prisma, ProductionPriority, ProductionStatus, ProofAssetType, ProofStatus, QuoteStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { generateProofContentDrafts } from "@/lib/proof-content";
@@ -33,7 +34,69 @@ function requiredString(formData: FormData, key: string) {
 function money(formData: FormData, key: string) {
   return String(formData.get(key) || "0");
 }
+function normalizePublicText(value: FormDataEntryValue | null, maxLength = 500) {
+  return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
 
+function hasHoneypotValue(formData: FormData) {
+  return Boolean(normalizePublicText(formData.get("companyWebsite"), 200) || normalizePublicText(formData.get("website"), 200));
+}
+
+function isValidPublicEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 160;
+}
+
+function isValidPublicPhone(phone: string) {
+  const digits = phone.replace(/\D/g, "");
+  return digits.length >= 7 && digits.length <= 18;
+}
+
+function publicValidationError(formData: FormData, requiredFields: string[]) {
+  const labels: Record<string, string> = {
+    name: "name",
+    phone: "phone number",
+    email: "email address",
+    businessName: "business name",
+    serviceInterestedIn: "service requested"
+  };
+  const missing = requiredFields.filter((field) => !normalizePublicText(formData.get(field), 300));
+  if (missing.length) return `Please add your ${missing.map((field) => labels[field] ?? field).join(", ")}.`;
+
+  const email = normalizeEmail(formData.get("email"));
+  if (!email || !isValidPublicEmail(email)) return "Please enter a valid email address.";
+
+  const phone = normalizePublicText(formData.get("phone"), 80);
+  if (!isValidPublicPhone(phone)) return "Please enter a valid phone number we can use for follow-up.";
+
+  const notes = String(formData.get("notes") ?? "");
+  if (notes.length > 1500) return "Please shorten your notes to 1,500 characters or less.";
+
+  return null;
+}
+
+const publicSubmissionBuckets = new Map<string, { count: number; resetAt: number }>();
+
+async function publicRateLimitKey(formData: FormData, email: string) {
+  const headerStore = await headers();
+  const forwarded = headerStore.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const realIp = headerStore.get("x-real-ip")?.trim();
+  const phone = normalizePublicText(formData.get("phone"), 80).replace(/\D/g, "");
+  return `${forwarded || realIp || "unknown"}:${email || phone || "anonymous"}`;
+}
+
+async function isPublicSubmissionRateLimited(formData: FormData, email: string) {
+  const key = await publicRateLimitKey(formData, email);
+  const now = Date.now();
+  const windowMs = 2 * 60 * 1000;
+  const bucket = publicSubmissionBuckets.get(key);
+  if (!bucket || bucket.resetAt < now) {
+    publicSubmissionBuckets.set(key, { count: 1, resetAt: now + windowMs });
+    return false;
+  }
+  bucket.count += 1;
+  publicSubmissionBuckets.set(key, bucket);
+  return bucket.count > 3;
+}
 function tomorrow() {
   const value = new Date();
   value.setDate(value.getDate() + 1);
@@ -472,6 +535,28 @@ type IntakeAssetInput = {
   notes?: string;
 };
 
+const allowedIntakeAssetTypes = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp", "image/svg+xml"]);
+
+function isSafePublicUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return ["https:", "http:"].includes(url.protocol) && value.length <= 1000;
+  } catch {
+    return false;
+  }
+}
+
+function isTrustedUploadedAsset(asset: IntakeAssetInput) {
+  return Boolean(
+    asset.url &&
+    isSafePublicUrl(asset.url) &&
+    asset.pathname?.startsWith("crystal-growth-os/leads/") &&
+    allowedIntakeAssetTypes.has(asset.contentType ?? "") &&
+    Number(asset.size ?? 0) > 0 &&
+    Number(asset.size ?? 0) <= 8 * 1024 * 1024
+  );
+}
+
 function parseUploadedAssets(formData: FormData) {
   const assets: IntakeAssetInput[] = [];
   const raw = requiredString(formData, "assetsJson");
@@ -479,7 +564,7 @@ function parseUploadedAssets(formData: FormData) {
   if (raw) {
     try {
       const parsed = JSON.parse(raw) as IntakeAssetInput[];
-      if (Array.isArray(parsed)) assets.push(...parsed.filter((asset) => asset.url && asset.type));
+      if (Array.isArray(parsed)) assets.push(...parsed.filter((asset) => asset.type && isTrustedUploadedAsset(asset)));
     } catch {
       console.error("[intake-assets] Could not parse uploaded asset metadata");
     }
@@ -493,12 +578,12 @@ function parseUploadedAssets(formData: FormData) {
 
   fallbackAssets.forEach(({ key, type, label }) => {
     const url = requiredString(formData, key);
-    if (!url || assets.some((asset) => asset.type === type)) return;
+    if (!url || !isSafePublicUrl(url) || assets.some((asset) => asset.type === type)) return;
     assets.push({
       type,
       url,
       pathname: url,
-      filename: url.split("/").pop() || label,
+      filename: url.split("/").pop()?.slice(0, 120) || label,
       contentType: "text/uri-list",
       size: 0,
       notes: label
@@ -571,17 +656,20 @@ async function attachRepeatIntakeSubmission(formData: FormData, email: string) {
 }
 
 export async function createIntakeLeadAction(formData: FormData) {
-  requireIntakeFields(formData, ["name", "phone", "email", "businessName", "serviceInterestedIn"]);
+  if (hasHoneypotValue(formData)) redirect("/intake/thank-you?type=received");
+  const validationError = publicValidationError(formData, ["name", "phone", "email", "businessName", "serviceInterestedIn"]);
+  if (validationError) return { ok: false, message: validationError };
 
   const email = normalizeEmail(formData.get("email"));
-  if (!email) throw new Error("A valid email is required for intake submissions.");
+  if (!email) return { ok: false, message: "Please enter a valid email address." };
+  if (await isPublicSubmissionRateLimited(formData, email)) return { ok: false, message: "Please wait a few minutes before submitting again, or contact us directly on WhatsApp." };
 
   const existingLead = await findLeadByEmail(email);
   if (existingLead) {
     const updated = await attachRepeatIntakeSubmission(formData, email);
     await createLeadCommunicationDraft(updated.id, CommunicationTrigger.NEW_LEAD, { force: true });
     revalidateIntakeRoutes(updated.id);
-    redirect("/intake/thank-you");
+    redirect("/intake/thank-you?type=repeat");
   }
 
   const budgetRange = requiredString(formData, "budgetRange");
@@ -631,11 +719,12 @@ export async function createIntakeLeadAction(formData: FormData) {
       await createLeadCommunicationDraft(updated.id, CommunicationTrigger.NEW_LEAD, { force: true });
       revalidateIntakeRoutes(updated.id);
     } else {
-      throw error;
+      console.error("[intake] public submission failed", error);
+      return { ok: false, message: "We could not save your request right now. Please try again or contact us on WhatsApp." };
     }
   }
 
-  redirect("/intake/thank-you");
+  redirect("/intake/thank-you?type=standard");
 }
 
 type ShopfrontSubmissionResult = {
@@ -772,11 +861,14 @@ async function attachRepeatShopfrontSubmission(formData: FormData, email: string
 
 export async function createShopfrontIntakeLeadAction(formData: FormData) {
   console.log("[shopfront-intake] action started");
-  requireIntakeFields(formData, ["name", "phone", "email", "businessName"]);
+  if (hasHoneypotValue(formData)) redirect("/intake/thank-you?type=shopfront");
+  const validationError = publicValidationError(formData, ["name", "phone", "email", "businessName"]);
+  if (validationError) return { ok: false, message: validationError };
 
   const email = normalizeEmail(formData.get("email"));
   console.log("[shopfront-intake] normalized email", email);
-  if (!email) throw new Error("A valid email is required for shopfront mockup requests.");
+  if (!email) return { ok: false, message: "Please enter a valid email address." };
+  if (await isPublicSubmissionRateLimited(formData, email)) return { ok: false, message: "Please wait a few minutes before submitting again, or contact us directly on WhatsApp." };
 
   const assets = parseUploadedAssets(formData);
   const createAssets = assetCreateData(assets);
@@ -873,13 +965,13 @@ export async function createShopfrontIntakeLeadAction(formData: FormData) {
       console.log("[shopfront-intake] P2002 detected, attaching submission to existing lead", { email });
       result = await attachRepeatShopfrontSubmission(formData, email, assets);
     } else {
-      throw new Error("We could not save your shopfront mockup request. Please try again or WhatsApp Crystal Branding Studio.");
+      return { ok: false, message: "We could not save your shopfront mockup request. Please try again or WhatsApp Crystal Branding Studio." };
     }
   }
 
   if (!result?.leadId) {
     console.error("[shopfront-intake] no lead id after create/update", result);
-    throw new Error("We could not save your shopfront mockup request. Please try again or WhatsApp Crystal Branding Studio.");
+    return { ok: false, message: "We could not save your shopfront mockup request. Please try again or WhatsApp Crystal Branding Studio." };
   }
 
   console.log("[shopfront-intake] lead id after create/update", result.leadId);
@@ -896,8 +988,8 @@ export async function createShopfrontIntakeLeadAction(formData: FormData) {
     force: true
   });
   revalidateIntakeRoutes(result.leadId);
-  console.log("[shopfront-intake] redirect target", "/intake/thank-you");
-  redirect("/intake/thank-you");
+  console.log("[shopfront-intake] redirect target", "/intake/thank-you?type=shopfront");
+  redirect("/intake/thank-you?type=shopfront");
 }
 function revalidateMockupRoutes(leadId: string) {
   ["/", "/mockups", "/leads", "/follow-ups", "/money-today", "/intake/inbox", "/reports/revenue"].forEach((path) => revalidatePath(path));
@@ -2468,6 +2560,12 @@ export async function scheduleFollowUpTomorrowAction(quoteId: string) {
     };
   }
 }
+
+
+
+
+
+
 
 
 

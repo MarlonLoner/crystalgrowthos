@@ -134,6 +134,13 @@ export function getDataHealthWarnings(data: DataHealthInput): DataHealthWarning[
     link: "/system-health",
     count: 1
   });
+  if (autoEmailEnabled && !emailTestMode) warnings.push({
+    severity: "warning",
+    title: "Live scheduled email sending enabled",
+    message: "AUTO_EMAIL_ENABLED is true and EMAIL_TEST_MODE is off. Review /communication/templates before launch sending.",
+    link: "/communication/templates",
+    count: 1
+  });
   if (emailSendingConfigured && !emailFromConfigured) warnings.push({
     severity: "critical",
     title: "Email sending enabled without EMAIL_FROM",
@@ -228,6 +235,7 @@ export function getDataHealthWarnings(data: DataHealthInput): DataHealthWarning[
 
   return warnings;
 }
+
 
 
 
